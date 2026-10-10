@@ -52,11 +52,11 @@ Performance: 4000 birds simulate 20 s in 6.4 s on one core in release mode
   bird is already aligned, which accelerated the flock to ~14 m/s and inflated
   `|Ni|`. The paper's text says "average" and PLAN.md says "mean forward of
   neighbours", so the mean is used.
-- **Banking lift compensation.** The paper states that rolling adds a component
-  of magnitude `|al| sin β_in` to the lift. That magnitude is negligible for the
-  Table 1 values and adding it pumped energy into the flock, so it is omitted.
-  This is the term PLAN.md renders as a division of lift by `cos β`; the paper
-  has no such division, so no `cos β` factor is used either.
+- **Banking lift compensation.** Lift is divided by `cos β` (clamped), so a
+  banked bird holds its height; this is the compensation PLAN.md describes. The
+  paper instead adds a component `|al| sin β_in` to the lift, which is
+  negligible for the Table 1 values and pumped energy into the flock. The
+  `1/cos β` factor is the equivalent steady-state correction.
 
 ### Deviations where the paper is internally inconsistent
 
@@ -84,6 +84,15 @@ behaviour the same paper reports, so a correction was made and is documented.
   0.01 N/m. Measured with `--probe` after this fix alone, the flock still mills
   (mean signed tangential velocity 10.4 m/s, no roost crossing in four
   minutes): the crossing needs the banking fix below.
+- **Banking (Eq. 19–21).** The paper's roll update,
+  `β ← β + atan(w_βin·a_lat·Δt) − atan(w_βout·sin β·Δt)`, is applied once per
+  5 ms integration step. With `w_βin = 10`, a 1 N lateral force adds ~0.56 rad in
+  a single step while the roll-out removes ~0.005 rad, so the roll is a
+  high-gain integrator pinned at the ±80° clamp; the paper's own birds fly level
+  most of the time, so the printed form cannot be what was simulated. Replaced
+  with a coordinated turn: the target bank is `β* = atan(a_lat/g)` and the roll
+  follows it with a first-order lag (`τ_roll = 0.15 s`) and a maximum roll rate.
+  See `flight::step_bird`.
 - **Separation and alignment weights.** Raised from Table 1's 1.0 N and 0.5 N to
   1.7 N and 1.0 N, to put the nearest-neighbour distance in the 0.7–1.5 m band
   and keep the flock coherent. The paper tunes these parameters too; the

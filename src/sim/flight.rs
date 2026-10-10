@@ -52,23 +52,27 @@ pub fn step_bird(
     let side = side_of(f);
     let speed = v.length().max(1e-6);
 
-    // Bank into the lateral component of the steering force (Eq. 18–21).
-    let al = steering.dot(side) / MASS;
-    let beta_in = (W_BETA_IN * al * dt).atan();
-    let beta_out = (W_BETA_OUT * roll.sin() * dt).atan();
+    // Coordinated turn: bank toward `atan(a_lat / g)`, with a first-order lag
+    // and a maximum roll rate. This replaces the paper's Eq. 19–21, which
+    // applied per integration step is a high-gain integrator that pins the roll
+    // at the clamp (see DEVELOPMENT.md).
+    let a_lat = steering.dot(side) / MASS;
     let beta = match forced_roll {
         Some(target) => target.clamp(-MAX_BANK, MAX_BANK),
-        None => (*roll + beta_in - beta_out).clamp(-MAX_BANK, MAX_BANK),
+        None => {
+            let target = (a_lat / G).atan().clamp(-MAX_BANK, MAX_BANK);
+            let rate = ((target - *roll) / TAU_ROLL).clamp(-MAX_ROLL_RATE, MAX_ROLL_RATE);
+            (*roll + rate * dt).clamp(-MAX_BANK, MAX_BANK)
+        }
     };
     *roll = beta;
 
     let up = body_up(f, beta);
 
-    // Lift (Eq. 16) along the body up. The paper adds a small compensation for
-    // the effective lift lost while banked; its magnitude is ambiguous there,
-    // and experiments showed it pumps energy, so it is omitted for now (M3 will
-    // revisit banking).
-    let lift = (speed / V0).powi(2) * L0;
+    // Lift (Eq. 16) along the body up, divided by `cos β` so a banked bird
+    // holds its height (the compensation PLAN.md describes).
+    let cos_beta = beta.cos().max(0.2);
+    let lift = (speed / V0).powi(2) * L0 / cos_beta;
     // Drag (Eq. 16) against the direction of travel.
     let drag = (speed / V0).powi(2) * D0;
     // Default thrust along the forward direction. The speed-control force is

@@ -34,10 +34,15 @@ pub const D0: f32 = L0 / CL_CD;
 /// Speed relaxation time τ [s]. Table 1.
 pub const TAU: f32 = 1.0;
 
-/// Banking weights w_βin, w_βout. Table 1.
-pub const W_BETA_IN: f32 = 10.0;
-/// See [`W_BETA_IN`].
-pub const W_BETA_OUT: f32 = 1.0;
+/// Time constant of the roll response [s]. The paper's Eq. 19–21 integrate the
+/// roll in angle directly (`w_βin = 10`, `w_βout = 1`); applied once per
+/// integration step that is a high-gain integrator and pins the roll at the
+/// clamp, so a first-order lag toward the coordinated-turn bank `atan(a_lat/g)`
+/// is used instead. See DEVELOPMENT.md.
+pub const TAU_ROLL: f32 = 0.15;
+
+/// Maximum roll rate [rad/s], so the roll cannot snap between extremes.
+pub const MAX_ROLL_RATE: f32 = 6.0;
 
 /// Bank angle limit [rad]. Not in the paper; a numerical safeguard so that a
 /// bird cannot roll past vertical and lose all lift.
