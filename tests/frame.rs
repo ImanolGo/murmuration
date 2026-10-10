@@ -7,6 +7,7 @@ use murmuration::sim::params::DT;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
+use ratatui::style::Color;
 
 /// The braille/sky symbols of a buffer, row by row.
 fn buffer_to_string(buf: &Buffer) -> String {
@@ -139,4 +140,45 @@ fn settled_flock_covers_the_screen() {
         "flock covers only {:.1}% of the screen",
         coverage * 100.0
     );
+}
+
+/// Dense cells tint their background toward the ink, so the flock reads as
+/// smoke rather than stippling (review C1).
+#[test]
+fn dense_cells_tint_the_background() {
+    let mut world = World::new(2000, 42);
+    for _ in 0..(30.0 / DT) as usize {
+        world.step(DT);
+    }
+    let mut camera = Camera::new();
+    for _ in 0..120 {
+        camera.update(&world, 1.0 / 30.0, aspect(80, 24));
+    }
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    let mut renderer = Renderer::new(Depth::TrueColor);
+    terminal
+        .draw(|frame| renderer.draw(frame, &world, &camera))
+        .unwrap();
+
+    let buf = terminal.backend().buffer();
+    let mut tinted = false;
+    for y in 0..24 {
+        let mut sky: Option<Color> = None;
+        let mut lit = Vec::new();
+        for x in 0..80 {
+            let cell = &buf[(x, y)];
+            let u = cell.symbol().chars().next().map(|c| c as u32).unwrap_or(0);
+            if (0x2801..=0x28FF).contains(&u) {
+                lit.push(cell.bg);
+            } else if sky.is_none() {
+                sky = Some(cell.bg);
+            }
+        }
+        if let Some(sky) = sky
+            && lit.iter().any(|bg| *bg != sky)
+        {
+            tinted = true;
+        }
+    }
+    assert!(tinted, "no dense cell tinted its background toward the ink");
 }

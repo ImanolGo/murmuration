@@ -84,6 +84,11 @@ fn composite(frame: &mut Frame, depth: &[f32], pixel_w: usize, evening: f32, col
                 continue;
             }
             let mean = sum / 8.0;
+            // Tint the background toward the ink by the cell's mean opacity (up
+            // to 60 %), so dense parts read as smoke; the braille dots stay for
+            // detail and edges.
+            let tint = mean.min(0.6);
+            let bg_rgb = colour::blend(sky_rgb, colour::INK, tint);
             let fg_rgb = colour::scale(sky_rgb, 1.0 - (mean * 3.0).clamp(0.0, 1.0));
             let fg = colour::convert(fg_rgb, colour);
             let mut bytes = [0u8; 4];
@@ -91,6 +96,7 @@ fn composite(frame: &mut Frame, depth: &[f32], pixel_w: usize, evening: f32, col
             let cell = &mut buf[(col, row)];
             cell.set_symbol(symbol);
             cell.set_fg(fg);
+            cell.set_bg(colour::convert(bg_rgb, colour));
         }
     }
 }

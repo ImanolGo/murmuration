@@ -69,6 +69,17 @@ pub fn scale(rgb: [u8; 3], f: f32) -> [u8; 3] {
     ]
 }
 
+/// Near-black ink for the birds: a fixed, slightly warm silhouette colour
+/// (review C2).
+pub const INK: [u8; 3] = [16, 13, 11];
+
+/// Linear blend from `a` (`t = 0`) to `b` (`t = 1`).
+pub fn blend(a: [u8; 3], b: [u8; 3], t: f32) -> [u8; 3] {
+    let t = t.clamp(0.0, 1.0);
+    let m = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
+    [m(a[0], b[0]), m(a[1], b[1]), m(a[2], b[2])]
+}
+
 fn cube_level(n: i32) -> i32 {
     if n == 0 { 0 } else { 55 + 40 * n }
 }

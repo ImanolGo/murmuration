@@ -200,8 +200,12 @@ The live view now renders the flock. Pipeline (`src/render/`):
 - `dither.rs` — a 2 × 4 Bayer matrix turns opacity into braille dots; thin
   fringes break into individual dots.
 - `colour.rs` — cell foreground fades from the sky tint to near-black with the
-  cell's mean opacity; the background is the sky gradient.
+  cell's mean opacity. A fixed, slightly warm near-black ink (`INK`) is defined
+  for silhouettes, and `blend` mixes two colours.
 - `mod.rs` — `Renderer` owns the optical-depth buffer and composites a frame.
+  Each lit cell's *background* is tinted toward the ink by the cell's mean
+  opacity (up to 60 %), so dense parts read as smoke; the braille dots stay for
+  detail and edges (review C1).
 
 The live loop in `main.rs` advances the world in fixed 5 ms steps by wall-clock
 time, eases the camera, and draws. It runs the display phase only (no arc yet).
