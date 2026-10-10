@@ -283,8 +283,10 @@ the base model.
   falcon that falls off with distance; a flash-expansion impulse when the falcon
   is inside 8 m and faster than 20 m/s; and the zigzag manoeuvre (forced roll
   ±50° over 0.6 s, overriding banking), started by alarmed birds and copied by
-  non-alarmed birds when at least `k` neighbours started one within `Δu`, with a
-  1.5 s cooldown.
+  non-alarmed birds when at least `k` neighbours are in a copyable zigzag, with a
+  1.5 s cooldown. Alarmed birds roll away from the falcon, and a copying bird
+  takes the roll direction of the majority of the neighbours it copies, so the
+  dark band is coherent instead of a mix of opposite rolls (review B3).
 - The falcon is drawn a little larger and darker than a starling.
 
 ### Validation

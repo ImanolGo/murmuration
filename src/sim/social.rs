@@ -55,6 +55,7 @@ pub fn decide(
     let mut n_star = 0u32;
     let mut n_align = 0u32;
     let mut zigzag_neighbours = 0u32;
+    let mut zigzag_sign_sum = 0.0f32;
 
     // One pass over the topological neighbourhood (Eq. 3).
     grid.for_each_within(p, r, positions, |j, dist| {
@@ -88,6 +89,7 @@ pub fn decide(
         let age = time - escape[j].zigzag_start;
         if escape[j].zigzag_active && age >= DU {
             zigzag_neighbours += 1;
+            zigzag_sign_sum += escape[j].zigzag_sign;
         }
     });
 
@@ -158,13 +160,23 @@ pub fn decide(
     force += escape::force(p, falcon, escape[i].flash_until, time);
 
     // Copy a zigzag: a non-alarmed bird starts one when at least `zigzag_k` of
-    // its neighbours started one within the last reaction time.
+    // its neighbours are in a copyable zigzag. It takes the roll direction of
+    // the majority of those neighbours, so the dark band is coherent rather
+    // than noise.
     let start_zigzag = if !escape[i].alarmed
         && !escape[i].zigzag_active
         && time >= escape[i].cooldown_until
         && zigzag_neighbours >= zigzag_k
     {
-        Some(if rng.random::<bool>() { 1.0 } else { -1.0 })
+        Some(if zigzag_sign_sum > 0.0 {
+            1.0
+        } else if zigzag_sign_sum < 0.0 {
+            -1.0
+        } else if rng.random::<bool>() {
+            1.0
+        } else {
+            -1.0
+        })
     } else {
         None
     };

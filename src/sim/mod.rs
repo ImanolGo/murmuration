@@ -260,19 +260,23 @@ impl World {
                 let fspeed = falcon.speed();
                 for i in 0..self.len() {
                     let dist = (self.position[i] - fpos).length();
-                    let e = &mut self.escape[i];
                     if dist < R_THREAT {
+                        // Roll away from the falcon: bank so the bird's up
+                        // vector tilts away from it.
+                        let side = flight::side_of(flight::forward(self.velocity[i]));
+                        let to_falcon = (fpos - self.position[i]).dot(side);
+                        let e = &mut self.escape[i];
                         if !e.zigzag_active && time >= e.cooldown_until {
                             e.zigzag_start = time;
                             e.zigzag_active = true;
-                            e.zigzag_sign = if i % 2 == 0 { 1.0 } else { -1.0 };
+                            e.zigzag_sign = if to_falcon > 0.0 { -1.0 } else { 1.0 };
                         }
                         e.alarmed = true;
                         if dist < R_FLASH && fspeed > V_FLASH {
                             e.flash_until = time + FLASH_DURATION;
                         }
                     } else {
-                        e.alarmed = false;
+                        self.escape[i].alarmed = false;
                     }
                 }
             }

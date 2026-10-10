@@ -52,3 +52,27 @@ fn m4_threshold_weakens_the_wave() {
         b.samples
     );
 }
+
+/// Copied zigzags take the majority direction, so the dark band is coherent
+/// rather than a mix of opposite rolls (review B3).
+#[test]
+fn copied_zigzags_share_a_direction() {
+    let mut world = World::new(2000, 42);
+    world.zigzag_k = 2;
+    escape::measure_agitation(&mut world, 3.0);
+
+    let signs: Vec<f32> = world
+        .escape
+        .iter()
+        .filter(|e| e.zigzag_start.is_finite())
+        .map(|e| e.zigzag_sign)
+        .collect();
+    assert!(signs.len() > 50, "too few zigzags: {}", signs.len());
+    let positive = signs.iter().filter(|&&s| s > 0.0).count();
+    let fraction = positive as f32 / signs.len() as f32;
+    assert!(
+        fraction > 0.8,
+        "copied zigzags are not coherent: {:.0}% roll one way",
+        fraction * 100.0
+    );
+}

@@ -138,10 +138,12 @@ pub fn measure_agitation(world: &mut World, seconds: f32) -> AgitationWave {
         .map(|&i| initial_position[i])
         .sum::<Vec3>()
         / seed_birds.len() as f32;
-    for (idx, &i) in seed_birds.iter().enumerate() {
+    for &i in &seed_birds {
         world.escape[i].zigzag_start = world.time;
         world.escape[i].zigzag_active = true;
-        world.escape[i].zigzag_sign = if idx % 2 == 0 { 1.0 } else { -1.0 };
+        // A real alarm patch is coherent (birds roll away from the falcon), so
+        // the seeded manoeuvre is too.
+        world.escape[i].zigzag_sign = 1.0;
     }
 
     let start_time = world.time;
