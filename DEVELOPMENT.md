@@ -146,6 +146,14 @@ deviation, the inertia ratios, the neighbour count of a group spawned 300 m out,
 rendered coverage, the agitation-wave speed and the 256-colour mapping of a dark
 grey. The numbers are recorded in the commit messages as the model is fixed.
 
+`tests/part_d.rs` runs the same 4-minute probe and asserts the targets the model
+meets — bank clamp < 2 %, mean bank < 15°, height std ≥ 2 m, `I2/I1` < 10 — and
+prints the open ones (mean tangential velocity, longest roost gap, `I3/I1`), so a
+regression in the met targets fails the suite. The other part-D targets have
+their own tests: `b1::distant_group_finds_neighbours`,
+`frame::settled_flock_covers_the_screen`, `m4::m4_agitation_wave_propagates` and
+`colour::dark_greys_stay_dark`.
+
 ### Known gaps (reported, not faked)
 
 - **Roost crossing.** The inward roost force no longer pins the flock to the
