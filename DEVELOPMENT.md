@@ -137,9 +137,11 @@ time, eases the camera, and draws. It runs the display phase only (no arc yet).
 ### Validation
 
 - A fixed-seed frame (2000 birds, seed 42, 30 s, 80 × 24) is snapshotted with
-  `insta` in `tests/frame.rs`; it shows a dense, soft-edged, stippled mass with
-  no individual bird dots, which matches the character of dusk murmuration
-  footage and the StarDisplay figures.
+  `insta` in `tests/frame.rs`. It is `#[ignore]`d because libm differences
+  between platforms flip individual dither dots, so the exact snapshot is only
+  valid on the machine that made it (run `cargo test -- --ignored` locally to
+  check it). CI instead runs `frame_renders_a_flock`, a portable check that the
+  frame contains plenty of braille and a reed silhouette.
 - `tests/perf.rs` (ignored by default) measures **69–72 fps** for 4000 birds at
   both 80 × 24 and 200 × 60 in release mode, well above the 30 fps target.
 - A pseudo-terminal run confirms the live view enters the alternate screen,
