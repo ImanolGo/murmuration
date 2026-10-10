@@ -51,7 +51,10 @@ Performance: 4000 birds simulate 20 s in 6.4 s on one core in release mode
   vectors; applied literally it leaves a constant forward force even when a
   bird is already aligned, which accelerated the flock to ~14 m/s and inflated
   `|Ni|`. The paper's text says "average" and PLAN.md says "mean forward of
-  neighbours", so the mean is used.
+  neighbours", so the mean is used. The resulting misalignment vector is applied
+  unnormalised: normalising it turned an almost-aligned bird's tiny, randomly
+  directed misalignment into a full 1 N sideways kick — the "neighbour noise"
+  that saturated the bank and drove the elongation.
 - **Banking lift compensation.** Lift is divided by `cos β` (clamped), so a
   banked bird holds its height; this is the compensation PLAN.md describes. The
   paper instead adds a component `|al| sin β_in` to the lift, which is
@@ -75,15 +78,16 @@ behaviour the same paper reports, so a correction was made and is documented.
   multiplies `w_RoostH` (N/m) by a unit lateral vector, so it does not have the
   units of a force; the units say the force should grow with the distance beyond
   `R_roost`. Second, the lateral direction was fixed to the bird's right-hand
-  side, so every bird crossing the boundary banked the same way and the whole
-  flock milled clockwise along the boundary. The force is now scaled by
-  `dist_h − R_roost` and the lateral direction is chosen to point inward
-  (`sign = −(side·n)`). The weight stays at the raised 1.0 N/m for now, because
-  the alignment rule still injects a full-strength random kick that saturates
-  the bank; once the banking model is corrected it should return to Table 1's
-  0.01 N/m. Measured with `--probe` after this fix alone, the flock still mills
-  (mean signed tangential velocity 10.4 m/s, no roost crossing in four
-  minutes): the crossing needs the banking fix below.
+  side, so a bird already heading inward was pushed back out. The force is now
+  scaled by `dist_h − R_roost` and the lateral direction is chosen to point
+  inward (`sign = −(side·n)`). With the banking and alignment fixes in place the
+  Table 1 weight (0.01 N/m) is used again. **Open:** the flock no longer mills at
+  the boundary, but it still does not cross the roost — with `--probe` the
+  centroid stays near 143 m and the mean signed tangential velocity is 10.3 m/s.
+  The boundary force is radial for a tangentially moving bird, so it applies no
+  torque and cannot remove the angular momentum the initial condition gives the
+  flock. Making it cross needs a non-central (dissipative) roost force or a
+  different initial condition; see the open issue in the M1 notes.
 - **Banking (Eq. 19–21).** The paper's roll update,
   `β ← β + atan(w_βin·a_lat·Δt) − atan(w_βout·sin β·Δt)`, is applied once per
   5 ms integration step. With `w_βin = 10`, a 1 N lateral force adds ~0.56 rad in
@@ -93,10 +97,11 @@ behaviour the same paper reports, so a correction was made and is documented.
   with a coordinated turn: the target bank is `β* = atan(a_lat/g)` and the roll
   follows it with a first-order lag (`τ_roll = 0.15 s`) and a maximum roll rate.
   See `flight::step_bird`.
-- **Separation and alignment weights.** Raised from Table 1's 1.0 N and 0.5 N to
-  1.7 N and 1.0 N, to put the nearest-neighbour distance in the 0.7–1.5 m band
-  and keep the flock coherent. The paper tunes these parameters too; the
-  direction is the same, the value differs.
+- **Separation and alignment weights.** `W_ALIGN` is back at Table 1's 0.5 N;
+  the earlier 1.0 N was compensating for normalising the alignment force, which
+  is now proportional to the misalignment. `W_SEP` is still raised from Table 1's
+  1.0 N to 1.7 N to put the nearest-neighbour distance in the 0.7–1.5 m band. The
+  paper tunes these parameters too; the direction is the same, the value differs.
 - **Bank angle clamp.** The paper does not clamp `β`; ±80° is added as a
   numerical safeguard so a bird cannot roll past vertical and lose all lift.
 
@@ -124,6 +129,15 @@ grey. The numbers are recorded in the commit messages as the model is fixed.
 
 ### Known gaps (reported, not faked)
 
+- **Roost crossing.** The inward roost force no longer pins the flock to the
+  boundary, but the flock still orbits inside `R_roost` instead of passing back
+  and forth over the centre. `--probe` (2000 birds, seed 0, four minutes): mean
+  signed tangential velocity 10.3 m/s and the centroid never comes within 60 m
+  of the centre. The initial condition launches the whole flock with one heading
+  at a bearing that gives it angular momentum, and the boundary force is radial
+  for a tangentially moving bird, so it applies no torque and does not remove
+  that angular momentum. Candidate fixes, not yet applied: launch the flock
+  heading toward the centre, or make the roost force non-central (dissipative).
 - **Elongation.** The flock is frequently more elongated (inertia ratio `I2/I1`
   of several tens) than the paper's 1.9–3.6. The oblong-school instability is
   only partly destroyed by the turns in this implementation. This is a

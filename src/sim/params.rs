@@ -78,10 +78,8 @@ pub const SIGMA: f32 = 1.37;
 /// the paper matches by tuning r_sep (our separation Gaussian is sharper).
 pub const W_SEP: f32 = 1.7;
 
-/// Weighting factor for the alignment force [N]. Table 1 lists 0.5 N; raised to
-/// 1.0 N because Eq. 8 is applied to the *mean* neighbour heading (see
-/// `social::decide`), which is a weaker signal than the printed sum.
-pub const W_ALIGN: f32 = 1.0;
+/// Weighting factor for the alignment force [N]. Table 1.
+pub const W_ALIGN: f32 = 0.5;
 
 /// Weighting factor for the cohesion force [N]. Table 1.
 pub const W_COH: f32 = 1.0;
@@ -101,7 +99,7 @@ pub const R_ROOST: f32 = 150.0;
 /// `R_ROOST`; the stronger 1.0 N/m value is kept for now because the neighbour
 /// noise from the alignment rule (A3) still saturates the bank. Once A2 and A3
 /// are fixed this should return to the Table 1 value.
-pub const W_ROOST_H: f32 = 1.0;
+pub const W_ROOST_H: f32 = 0.01;
 
 /// Weighting factor for the vertical roost force [N/m]. Table 1.
 pub const W_ROOST_V: f32 = 0.2;

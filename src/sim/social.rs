@@ -114,17 +114,16 @@ pub fn decide(
         force += coh * (W_COH * centrality / n_star as f32);
     }
 
-    // Alignment: unit vector toward the mean neighbour heading (Eq. 8). The
-    // paper prints a sum; PLAN.md and the paper's text say "average", and the
-    // average is what vanishes when a bird is already aligned.
+    // Alignment (Eq. 8): proportional to the misalignment from the mean
+    // neighbour heading. Normalising this made a nearly-aligned bird receive a
+    // full-strength kick in a random direction, which was the "neighbour noise"
+    // that saturated the bank.
     let a = if n_align > 0 {
         align / n_align as f32 - f_i
     } else {
         Vec3::ZERO
     };
-    if a.length_squared() > 1e-12 {
-        force += a.normalize() * W_ALIGN;
-    }
+    force += a * W_ALIGN;
 
     // Horizontal roost pull (Eq. 11): a lateral steering force, stronger when
     // heading outward, that turns the bird back toward the roost. `w_RoostH` is
