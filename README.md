@@ -4,7 +4,7 @@ Starlings at dusk, in your terminal.
 
 murmuration fills your terminal with a few thousand starlings wheeling over a reed bed at sunset. The flock folds, stretches, splits and pours back into itself, and when a falcon arrives a dark wave ripples through it. None of those shapes are animated by hand. Each bird follows a handful of rules taken from the research on real starling flocks, and everything you see comes from those rules.
 
-> **Status:** early days. The plan lives in [PLAN.md](PLAN.md).
+> **Status:** early days. The plan lives in [PLAN.md](PLAN.md); what's built, how it was validated, and where it departs from the plan and the papers is recorded in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 <!-- A GIF goes here once there is something to record. -->
 
