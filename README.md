@@ -45,6 +45,7 @@ murmuration --birds 5000    # a bigger flock
 murmuration --falcon        # a falcon hunts on its own
 murmuration --seed 7        # the same evening every time
 murmuration --no-arc        # hold the display phase forever
+murmuration --no-mouse      # do not capture the mouse
 murmuration --colors none   # plain braille on the terminal default
 ```
 

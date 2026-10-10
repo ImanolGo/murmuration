@@ -46,6 +46,9 @@ struct Cli {
     /// Exit on any key press or mouse movement.
     #[arg(long)]
     screensaver: bool,
+    /// Do not capture the mouse (no mouse falcon, no exit-on-move).
+    #[arg(long)]
+    no_mouse: bool,
     /// Hold the display phase (no evening arc).
     #[arg(long)]
     no_arc: bool,
@@ -94,9 +97,34 @@ fn main() -> Result<()> {
     }
 
     let mut terminal = ratatui::init();
+    // Mouse capture is not part of ratatui's restore, so enable it here and
+    // make sure it is turned off on every exit path.
+    let mouse = !cli.no_mouse;
+    if mouse {
+        if let Err(err) =
+            crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)
+        {
+            ratatui::restore();
+            return Err(err.into());
+        }
+        install_mouse_panic_hook();
+    }
     let result = run(&mut terminal, seed, &cli);
+    if mouse {
+        let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
+    }
     ratatui::restore();
     result
+}
+
+/// Turns mouse capture off if the process panics, then runs ratatui's hook
+/// (which restores the terminal).
+fn install_mouse_panic_hook() {
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
+        hook(info);
+    }));
 }
 
 fn analyze(seconds: f32, birds: usize, seed: u64, with_falcon: bool) {
@@ -382,9 +410,10 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
                     }
                     _ => {}
                 },
-                Event::Mouse(mouse)
-                    if matches!(mouse.kind, MouseEventKind::Moved) && world.falcon.is_some() =>
-                {
+                Event::Mouse(mouse) if matches!(mouse.kind, MouseEventKind::Moved) => {
+                    // Moving the mouse makes you the falcon, spawning one on the
+                    // first movement.
+                    world.spawn_falcon();
                     let size = terminal.size()?;
                     let plane = flock_centroid(&world);
                     if let Some(falcon) = &mut world.falcon {

@@ -320,7 +320,10 @@ lower bound is used — it is the bound that limits the speed. Measured
 ### Key bindings added
 
 `f` releases the falcon; moving the mouse makes you the falcon (mouse mode sets
-the falcon's target to the point under the cursor).
+the falcon's target to the point under the cursor). Mouse capture is enabled
+around the run and turned off on every exit path — normal return, signal and
+panic — and the first mouse movement spawns the falcon, so mouse control no
+longer requires an existing falcon. `--no-mouse` leaves the mouse alone.
 
 ## M5 — the evening
 
@@ -359,6 +362,11 @@ No plan-vs-paper conflicts in M5.
 - **Signals.** `SIGINT`/`SIGTERM`/`SIGHUP` set a flag through `signal-hook`, and
   the loop returns normally so the terminal is restored.
 - **`--screensaver`.** Any key press or mouse movement exits.
+- **Mouse (review B4).** `ratatui::init()` does not enable mouse capture, so the
+  mouse falcon and exit-on-move silently did nothing. Mouse capture is now
+  enabled after init and disabled on every exit path (return, signal, panic).
+  Moving the mouse spawns a mouse-driven falcon on the first movement.
+  `--no-mouse` disables capture.
 - **Save.** `s` writes the current frame as ANSI truecolour text
   (`murmuration-frame-<t>s.ansi`, gitignored).
 
