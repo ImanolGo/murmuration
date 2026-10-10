@@ -142,10 +142,11 @@ fn settled_flock_covers_the_screen() {
     );
 }
 
-/// Dense cells tint their background toward the ink, so the flock reads as
-/// smoke rather than stippling (review C1).
+/// Dense cells tint their background toward the ink, and the dots are drawn in
+/// a fixed dark ink rather than a scaled-down sky, so thin edges stay visible
+/// (reviews C1 and C2).
 #[test]
-fn dense_cells_tint_the_background() {
+fn cells_use_dark_ink_and_tint() {
     let mut world = World::new(2000, 42);
     for _ in 0..(30.0 / DT) as usize {
         world.step(DT);
@@ -162,6 +163,7 @@ fn dense_cells_tint_the_background() {
 
     let buf = terminal.backend().buffer();
     let mut tinted = false;
+    let mut dots = 0u32;
     for y in 0..24 {
         let mut sky: Option<Color> = None;
         let mut lit = Vec::new();
@@ -169,16 +171,32 @@ fn dense_cells_tint_the_background() {
             let cell = &buf[(x, y)];
             let u = cell.symbol().chars().next().map(|c| c as u32).unwrap_or(0);
             if (0x2801..=0x28FF).contains(&u) {
-                lit.push(cell.bg);
+                lit.push((cell.fg, cell.bg));
             } else if sky.is_none() {
                 sky = Some(cell.bg);
             }
         }
-        if let Some(sky) = sky
-            && lit.iter().any(|bg| *bg != sky)
-        {
-            tinted = true;
+        let Some(sky) = sky else { continue };
+        let sky_sum = channel_sum(sky);
+        for (fg, bg) in lit {
+            assert!(
+                channel_sum(fg) < sky_sum,
+                "a dot at row {y} is not darker than the sky"
+            );
+            dots += 1;
+            if bg != sky {
+                tinted = true;
+            }
         }
     }
+    assert!(dots > 0, "no dots to check");
     assert!(tinted, "no dense cell tinted its background toward the ink");
+}
+
+/// Sum of an RGB colour's channels, for comparing brightness.
+fn channel_sum(c: Color) -> u32 {
+    match c {
+        Color::Rgb(r, g, b) => u32::from(r) + u32::from(g) + u32::from(b),
+        _ => 0,
+    }
 }

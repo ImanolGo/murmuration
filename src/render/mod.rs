@@ -19,6 +19,7 @@ use colour::Depth;
 /// Persistent per-frame buffers for the renderer.
 pub struct Renderer {
     depth: Vec<f32>,
+    dist: Vec<f32>,
     colour: Depth,
 }
 
@@ -33,6 +34,7 @@ impl Renderer {
     pub fn new(colour: Depth) -> Self {
         Self {
             depth: Vec::new(),
+            dist: Vec::new(),
             colour,
         }
     }
@@ -51,17 +53,33 @@ impl Renderer {
         // Background: sky gradient, stars and reeds.
         sky::draw(frame, evening, world.time, colour);
 
-        // Optical depth of the birds.
+        // Optical depth of the birds, plus opacity · distance for atmosphere.
         self.depth.clear();
         self.depth.resize(pixel_w * pixel_h, 0.0);
-        splat::splat(&mut self.depth, pixel_w, pixel_h, world, camera);
+        self.dist.clear();
+        self.dist.resize(pixel_w * pixel_h, 0.0);
+        splat::splat(
+            &mut self.depth,
+            &mut self.dist,
+            pixel_w,
+            pixel_h,
+            world,
+            camera,
+        );
 
-        composite(frame, &self.depth, pixel_w, evening, colour);
+        composite(frame, &self.depth, &self.dist, pixel_w, evening, colour);
     }
 }
 
 /// Turns the optical-depth buffer into braille dots and colours the cells.
-fn composite(frame: &mut Frame, depth: &[f32], pixel_w: usize, evening: f32, colour: Depth) {
+fn composite(
+    frame: &mut Frame,
+    depth: &[f32],
+    dist: &[f32],
+    pixel_w: usize,
+    evening: f32,
+    colour: Depth,
+) {
     let area = frame.area();
     let buf = frame.buffer_mut();
     for row in 0..area.height {
@@ -70,11 +88,16 @@ fn composite(frame: &mut Frame, depth: &[f32], pixel_w: usize, evening: f32, col
         for col in 0..area.width {
             let mut bits = 0u32;
             let mut sum = 0.0f32;
+            let mut tau_sum = 0.0f32;
+            let mut dist_sum = 0.0f32;
             for dy in 0..4usize {
                 for dx in 0..2usize {
-                    let tau = depth[(row as usize * 4 + dy) * pixel_w + col as usize * 2 + dx];
+                    let idx = (row as usize * 4 + dy) * pixel_w + col as usize * 2 + dx;
+                    let tau = depth[idx];
                     let alpha = 1.0 - (-tau).exp();
                     sum += alpha;
+                    tau_sum += tau;
+                    dist_sum += dist[idx];
                     if alpha > dither::threshold(dx, dy) {
                         bits |= dither::dot_bit(dx, dy);
                     }
@@ -89,7 +112,15 @@ fn composite(frame: &mut Frame, depth: &[f32], pixel_w: usize, evening: f32, col
             // detail and edges.
             let tint = mean.min(0.6);
             let bg_rgb = colour::blend(sky_rgb, colour::INK, tint);
-            let fg_rgb = colour::scale(sky_rgb, 1.0 - (mean * 3.0).clamp(0.0, 1.0));
+            // The ink is fixed; only atmospheric distance blends it back toward
+            // the sky, so silhouettes stay dark near the observer.
+            let mean_dist = if tau_sum > 1e-6 {
+                dist_sum / tau_sum
+            } else {
+                0.0
+            };
+            let atmosphere = (1.0 - mean_dist / splat::ATMOSPHERE).clamp(0.25, 1.0);
+            let fg_rgb = colour::blend(sky_rgb, colour::INK, atmosphere);
             let fg = colour::convert(fg_rgb, colour);
             let mut bytes = [0u8; 4];
             let symbol = dither::braille(bits).encode_utf8(&mut bytes);
