@@ -77,7 +77,11 @@ fn frame_renders_a_flock() {
             }
         }
     }
-    assert!(braille > 40, "too few braille cells for a flock: {braille}");
+    // The flock is a 3D cloud now (the vertical roost force is capped), so it
+    // projects fewer, dimmer cells than the old 0.7 m sheet. The framing and
+    // exposure work in the review will raise this; for now the smoke test only
+    // guards that the flock is drawn at all.
+    assert!(braille > 20, "too few braille cells for a flock: {braille}");
     assert!(reeds > 50, "no reed silhouette: {reeds}");
 }
 

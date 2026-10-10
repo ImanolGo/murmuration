@@ -139,10 +139,10 @@ pub fn decide(
         force += inward_side * (W_ROOST_H * (dist_h - R_ROOST) * outward);
     }
 
-    // Vertical roost pull toward the preferred height (Eq. 12). This is what
-    // keeps birds in level flight: with no pitch torque in the model, it is the
-    // only vertical restoring force.
-    force += Vec3::Z * (-W_ROOST_V * (p.z - z0));
+    // Vertical roost pull toward the preferred height (Eq. 12), capped at
+    // `W_ROOST_V` so it is not an arbitrarily stiff spring. It ramps up over
+    // `H_ROOST_V` metres and is constant beyond.
+    force += Vec3::Z * (W_ROOST_V * ((z0 - p.z) / H_ROOST_V).clamp(-1.0, 1.0));
 
     // Speed control: relax toward the cruise speed (Eq. 1, part of Eq. 14).
     let speed = velocities[i].length();

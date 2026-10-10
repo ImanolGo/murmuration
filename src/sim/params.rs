@@ -101,8 +101,13 @@ pub const R_ROOST: f32 = 150.0;
 /// are fixed this should return to the Table 1 value.
 pub const W_ROOST_H: f32 = 0.01;
 
-/// Weighting factor for the vertical roost force [N/m]. Table 1.
+/// Weighting factor for the vertical roost force [N]. Table 1.
 pub const W_ROOST_V: f32 = 0.2;
+
+/// Distance over which the vertical roost force ramps up to its cap `w_RoostV`
+/// [m]. The paper's Eq. 12 is proportional to the height difference; a cap is
+/// needed or the force becomes an arbitrarily stiff spring (see DEVELOPMENT.md).
+pub const H_ROOST_V: f32 = 15.0;
 
 /// Preferred flight height above the roost, the "zero level" z0 [m]. The paper
 /// calls it arbitrary; the evening arc varies it. Table 1 (implied).

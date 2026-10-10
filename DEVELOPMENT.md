@@ -97,6 +97,14 @@ behaviour the same paper reports, so a correction was made and is documented.
   with a coordinated turn: the target bank is `β* = atan(a_lat/g)` and the roll
   follows it with a first-order lag (`τ_roll = 0.15 s`) and a maximum roll rate.
   See `flight::step_bird`.
+- **Vertical roost force (Eq. 12).** The paper makes it proportional to the
+  height difference with `w_RoostV = 0.2 N`, an uncapped spring: three metres off
+  the preferred height already gives 0.6 N, most of the bird's weight, so the
+  flock is squeezed into a sheet about 0.7 m thick. Read as a cap (Table 1 lists
+  `w_RoostV` in N, and PLAN.md says "capped at `w_RV`") it is
+  `w_RoostV · clamp((z0 − z)/h, −1, 1)` with `h = 15 m`. Measured with `--probe`,
+  the height standard deviation rises from 0.7 m to 2.4 m and `I3/I1` falls from
+  ~1000 to ~190.
 - **Separation and alignment weights.** `W_ALIGN` is back at Table 1's 0.5 N;
   the earlier 1.0 N was compensating for normalising the alignment force, which
   is now proportional to the misalignment. `W_SEP` is still raised from Table 1's
