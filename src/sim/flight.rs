@@ -105,7 +105,11 @@ pub fn step_bird(
     let flight_force = up * lift - f * drag + f * D0 - Vec3::Z * MASS * G;
 
     // Euler integration (Eq. 22–23).
-    *v += (steering + flight_force) / MASS * dt;
+    // Lateral steering requests a bank; the banked lift supplies that force.
+    // Adding it directly as well doubled the turn and let birds slide sideways
+    // before their wings had rolled. Forward and vertical control remain direct.
+    let control = steering - side * steering.dot(side);
+    *v += (control + flight_force) / MASS * dt;
     let sp = v.length();
     if sp > V_MAX {
         *v *= V_MAX / sp;
@@ -118,6 +122,27 @@ pub fn step_bird(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lateral_request_does_not_slide_before_banking() {
+        let mut p = Vec3::new(0.0, 0.0, 100.0);
+        let mut v = Vec3::X * V0;
+        let mut roll = 0.0;
+        let mut spin = 0.0;
+        step_bird(
+            &mut p,
+            &mut v,
+            &mut roll,
+            &mut spin,
+            Vec3::Y * 0.2,
+            None,
+            DT,
+            Turning::Base,
+        );
+        // The first step has only the small lift component from a partial roll,
+        // not an instantaneous 0.2 N sideways kick as well.
+        assert!(v.y > 0.0 && v.y < 0.002, "sideways slip: {v:?}");
+    }
 
     #[test]
     fn level_cruise_holds_height() {

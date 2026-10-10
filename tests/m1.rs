@@ -45,6 +45,12 @@ fn m1_hard_criteria_2000_birds() {
     );
 
     let flatness = mean(settled, |s| s.flatness);
+    println!(
+        "M1: neighbours={neighbours:.2}, NND={nnd:.2}m, flatness={flatness:.3}, \
+        height std={:.2}m, nearest-neighbour axial fraction={:.3}",
+        mean(settled, |s| s.height_std),
+        mean(settled, |s| s.nn_aligned_fraction)
+    );
     assert!(flatness > 0.85, "mean |I1·ẑ| = {flatness}, target > 0.85");
 
     let aligned = mean(settled, |s| s.nn_aligned_fraction);

@@ -43,6 +43,7 @@ pub struct Camera {
     pub fov: f32,
     smoothed_target: Vec3,
     ready: bool,
+    last_world_time: f32,
 }
 
 impl Default for Camera {
@@ -63,6 +64,7 @@ impl Camera {
             fov: FOV_V,
             smoothed_target: Vec3::ZERO,
             ready: false,
+            last_world_time: 0.0,
         }
     }
 
@@ -74,11 +76,20 @@ impl Camera {
         }
         let n = world.len() as f32;
         let centroid = world.position.iter().copied().sum::<Vec3>() / n;
+        let initializing = !self.ready;
         if !self.ready {
             self.smoothed_target = centroid;
             self.ready = true;
         }
         // Smooth the look target (time constant ~2 s).
+        // Follow the flock's translation without a permanent two-second lag.
+        // Otherwise a narrow lens looks at where the birds used to be, then
+        // zooms out to accommodate that error instead of the flock's size.
+        let velocity = world.velocity.iter().copied().sum::<Vec3>() / n;
+        if !initializing {
+            self.smoothed_target += velocity * (world.time - self.last_world_time).clamp(0.0, 0.25);
+        }
+        self.last_world_time = world.time;
         self.smoothed_target += (centroid - self.smoothed_target) * (1.0 - (-dt / 2.0).exp());
 
         // A fixed spot on the ground, chosen by bearing. The observer does not
@@ -125,16 +136,19 @@ impl Camera {
             let x_extent = x0.abs().max(x1.abs());
             let y_extent = y0.abs().max(y1.abs());
             // Fill `FILL` of the binding (smaller) screen dimension.
-            let t = if aspect >= 1.0 {
-                y_extent / FILL
-            } else {
-                x_extent / (aspect * FILL)
-            };
+            let t = (y_extent.max(x_extent / aspect.max(0.1))) / FILL;
             2.0 * t.atan()
         };
         let target_fov = target_fov.clamp(FOV_MIN, FOV_MAX);
         // Ease the zoom (time constant ~3 s).
-        self.fov += (target_fov - self.fov) * (1.0 - (-dt / 3.0).exp());
+        if initializing {
+            self.fov = target_fov;
+        } else {
+            // Open the lens promptly on an approaching flock; tighten slowly.
+            // A symmetric slow zoom clips the flock during overhead passes.
+            let tau = if target_fov > self.fov { 0.6 } else { 3.0 };
+            self.fov += (target_fov - self.fov) * (1.0 - (-dt / tau).exp());
+        }
         self.fov = self.fov.clamp(FOV_MIN, FOV_MAX);
     }
 
@@ -191,4 +205,57 @@ fn percentiles(v: &mut [f32]) -> (f32, f32) {
     let lo = ((v.len() as f32 * 0.05) as usize).min(v.len() - 1);
     let hi = ((v.len() as f32 * 0.95) as usize).min(v.len() - 1);
     (v[lo], v[hi])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wide_flock_is_fitted_in_both_dimensions() {
+        let mut world = World::new(200, 7);
+        for (i, p) in world.position.iter_mut().enumerate() {
+            *p = Vec3::new(i as f32 - 100.0, 0.0, 100.0 + (i % 5) as f32);
+        }
+        for (w, h) in [(240, 144), (160, 96), (80, 160)] {
+            let mut camera = Camera::new();
+            for _ in 0..600 {
+                camera.update(&world, 1.0 / 30.0, w as f32 / h as f32);
+            }
+            let visible = world
+                .position
+                .iter()
+                .filter(|&&p| {
+                    camera
+                        .project(p, w, h)
+                        .is_some_and(|(x, y, _)| x > 0.0 && x < w as f32 && y > 0.0 && y < h as f32)
+                })
+                .count();
+            assert!(
+                visible >= 190,
+                "clipped wide flock: {visible}/200 at {w}x{h}"
+            );
+        }
+    }
+
+    #[test]
+    fn tracking_does_not_lag_behind_a_translating_flock() {
+        let mut world = World::new(200, 7);
+        world.velocity.fill(Vec3::X * 10.0);
+        let mut camera = Camera::new();
+        camera.update(&world, 1.0 / 30.0, 240.0 / 144.0);
+        for _ in 0..150 {
+            for p in &mut world.position {
+                *p += Vec3::X / 3.0;
+            }
+            world.time += 1.0 / 30.0;
+            camera.update(&world, 1.0 / 30.0, 240.0 / 144.0);
+        }
+        let centroid = world.position.iter().copied().sum::<Vec3>() / world.len() as f32;
+        let (x, y, _) = camera.project(centroid, 240, 144).unwrap();
+        assert!(
+            (x - 120.0).abs() < 2.0 && (y - 72.0).abs() < 2.0,
+            "camera watches where the flock used to be: {x}, {y}"
+        );
+    }
 }

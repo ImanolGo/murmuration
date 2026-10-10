@@ -74,17 +74,23 @@ fn frame_renders_a_flock() {
         for x in 0..80 {
             if let Some(c) = buf[(x, y)].symbol().chars().next() {
                 let u = c as u32;
-                if (0x2800..=0x28FF).contains(&u) {
+                if (0x2800..=0x28FF).contains(&u)
+                    && y < 24 - murmuration::render::sky::REED_MAX_ROWS
+                {
                     braille += 1;
                 }
-                if c == '█' {
+                if (0x2801..=0x28ff).contains(&u) && buf[(x, y)].fg == Color::Rgb(12, 24, 16) {
                     reeds += 1;
                 }
             }
         }
     }
     assert!(braille > 40, "too few braille cells for a flock: {braille}");
-    assert!(reeds > 50, "no reed silhouette: {reeds}");
+    // Reeds belong only to views near the horizon, not overhead close-ups.
+    assert!(
+        reeds == 0 || reeds > 50,
+        "incomplete reed silhouette: {reeds}"
+    );
 }
 
 #[test]
@@ -124,11 +130,11 @@ fn settled_flock_covers_the_screen() {
 
     let buf = terminal.backend().buffer();
     let mut lit = 0u32;
-    for y in 0..h {
+    for y in 0..h.saturating_sub(murmuration::render::sky::REED_MAX_ROWS) {
         for x in 0..w {
             if let Some(c) = buf[(x, y)].symbol().chars().next() {
                 let u = c as u32;
-                if (0x2801..=0x28FF).contains(&u) {
+                if (0x2801..=0x28FF).contains(&u) && buf[(x, y)].fg != Color::Rgb(12, 24, 16) {
                     lit += 1;
                 }
             }
@@ -227,11 +233,11 @@ fn exposure_adapts_to_flock_size() {
         exposures.push(renderer.exposure());
         let buf = terminal.backend().buffer();
         let mut lit = 0u32;
-        for y in 0..h {
+        for y in 0..h.saturating_sub(murmuration::render::sky::REED_MAX_ROWS) {
             for x in 0..w {
                 if let Some(c) = buf[(x, y)].symbol().chars().next() {
                     let u = c as u32;
-                    if (0x2801..=0x28FF).contains(&u) {
+                    if (0x2801..=0x28FF).contains(&u) && buf[(x, y)].fg != Color::Rgb(12, 24, 16) {
                         lit += 1;
                     }
                 }
@@ -248,4 +254,126 @@ fn exposure_adapts_to_flock_size() {
         exposures[0] > exposures[1],
         "the sparse flock should get a higher exposure: {exposures:?}"
     );
+}
+
+#[test]
+fn foreground_is_fine_and_pause_is_visually_stable() {
+    let mut world = World::new(0, 7);
+    world.time = 12.0;
+    let camera = Camera::new();
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    let mut renderer = Renderer::new(Depth::TrueColor);
+    terminal
+        .draw(|f| renderer.draw(f, &world, &camera, 0.0))
+        .unwrap();
+    let first = terminal.backend().buffer().clone();
+    terminal
+        .draw(|f| renderer.draw(f, &world, &camera, 0.0))
+        .unwrap();
+    assert_eq!(&first, terminal.backend().buffer());
+    for y in 0..24 {
+        for x in 0..80 {
+            let cell = &first[(x, y)];
+            assert_ne!(cell.symbol(), "█", "a reed became a building");
+            if cell.fg == Color::Rgb(12, 24, 16) {
+                assert!(y >= 21, "reeds intrude into the sky");
+                assert!(
+                    cell.symbol()
+                        .chars()
+                        .next()
+                        .is_some_and(|c| (0x2801..=0x28ff).contains(&(c as u32)))
+                );
+            }
+        }
+    }
+
+    let mut overhead = Camera::new();
+    overhead.forward = glam::Vec3::Z;
+    overhead.up = glam::Vec3::Y;
+    // A new overhead view starts without foreground. A running view now fades
+    // towards that state instead of snapping there (see the transition test).
+    let mut renderer = Renderer::new(Depth::TrueColor);
+    terminal
+        .draw(|f| renderer.draw(f, &world, &overhead, 0.0))
+        .unwrap();
+    for cell in &terminal.backend().buffer().content {
+        assert_ne!(
+            cell.fg,
+            Color::Rgb(12, 24, 16),
+            "foreground landscape floats in an overhead close-up"
+        );
+    }
+}
+
+#[test]
+fn foreground_fades_in_both_directions_and_freezes_when_paused() {
+    let mut world = World::new(0, 7);
+    world.time = 12.0;
+    let horizon = Camera::new();
+    let mut overhead = Camera::new();
+    overhead.forward = glam::Vec3::Z;
+    overhead.up = glam::Vec3::Y;
+    let reeds = |buf: &Buffer| {
+        buf.content
+            .iter()
+            .filter(|cell| {
+                cell.symbol()
+                    .chars()
+                    .next()
+                    .is_some_and(|c| (0x2801..=0x28ff).contains(&(c as u32)))
+            })
+            .count()
+    };
+    for depth in [Depth::TrueColor, Depth::Ansi256, Depth::Mono] {
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        let mut renderer = Renderer::new(depth);
+        terminal
+            .draw(|f| renderer.draw(f, &world, &horizon, 0.0))
+            .unwrap();
+        assert!(reeds(terminal.backend().buffer()) > 50);
+        terminal
+            .draw(|f| renderer.draw(f, &world, &overhead, 1.0 / 30.0))
+            .unwrap();
+        assert!(
+            reeds(terminal.backend().buffer()) > 0,
+            "foreground vanished in one frame"
+        );
+        let fading = terminal.backend().buffer().clone();
+        terminal
+            .draw(|f| renderer.draw(f, &world, &overhead, 0.0))
+            .unwrap();
+        assert_eq!(
+            &fading,
+            terminal.backend().buffer(),
+            "pause did not freeze the fade"
+        );
+        for _ in 0..180 {
+            terminal
+                .draw(|f| renderer.draw(f, &world, &overhead, 1.0 / 30.0))
+                .unwrap();
+        }
+        assert_eq!(
+            reeds(terminal.backend().buffer()),
+            0,
+            "foreground persists overhead"
+        );
+        terminal
+            .draw(|f| renderer.draw(f, &world, &horizon, 1.0 / 30.0))
+            .unwrap();
+        assert!(
+            reeds(terminal.backend().buffer()) > 0,
+            "foreground never fades back in"
+        );
+        if depth == Depth::TrueColor {
+            assert!(
+                !terminal
+                    .backend()
+                    .buffer()
+                    .content
+                    .iter()
+                    .any(|cell| cell.fg == Color::Rgb(12, 24, 16)),
+                "foreground jumped to full opacity"
+            );
+        }
+    }
 }

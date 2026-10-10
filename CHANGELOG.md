@@ -4,6 +4,33 @@ All notable changes to this project. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); this project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Fade foreground reeds smoothly with camera elevation and over time instead of
+  popping the whole band on/off at a hard horizon cutoff; pause freezes the fade.
+
+- Remove doubled lateral acceleration and add explicit, documented cohesion,
+  and committed-return adaptations to prevent boundary milling and
+  reduce filament formation.
+- Frame both flock dimensions, compensate camera tracking lag and avoid slow
+  zoom-out clipping during approaching passes.
+- Keep silhouettes dark; reduce checkerboard shading and prevent footprint
+  darkness jumps and exposure changes while paused.
+- Use an elevation-aware, less saturated sky with finer, softly dithered colour
+  gradients. Replace the jumping block skyline with fine reeds that bend in the
+  wind and disappear from overhead close-ups.
+- Spawn compact arriving groups along a shared approach corridor rather than
+  unrelated opposing streams.
+
+### Added
+
+- Reproducible SVG visual-review example and regression checks for the motion,
+  camera, footprint, foreground and roost-crossing defects.
+- A browser-free live ANSI recorder and refreshed README demo, avoiding stalled
+  browser captures and preserving simulation timing.
+
 ## [0.1.0] - 2026-10-10
 
 First release. A starling murmuration in the terminal, built on the StarDisplay

@@ -31,6 +31,9 @@ const EXPOSURE_TAU: f32 = 4.0;
 const EXPOSURE_MIN: f32 = 1.0;
 const EXPOSURE_MAX: f32 = 400.0;
 
+/// Ease foreground transitions without changing the plants' geometry [s].
+const REED_FADE_TAU: f32 = 0.6;
+
 /// Persistent per-frame buffers for the renderer.
 pub struct Renderer {
     depth: Vec<f32>,
@@ -38,6 +41,8 @@ pub struct Renderer {
     /// Optical depths of the flock's pixels, reused for the percentile.
     samples: Vec<f32>,
     exposure: f32,
+    exposure_ready: bool,
+    reed_opacity: Option<f32>,
     colour: Depth,
 }
 
@@ -55,6 +60,8 @@ impl Renderer {
             dist: Vec::new(),
             samples: Vec::new(),
             exposure: DEFAULT_EXPOSURE,
+            exposure_ready: false,
+            reed_opacity: None,
             colour,
         }
     }
@@ -77,7 +84,7 @@ impl Renderer {
         let colour = self.colour;
 
         // Background: sky gradient, stars and reeds.
-        sky::draw(frame, evening, world.time, colour);
+        sky::draw(frame, evening, colour, camera);
 
         // Raw optical depth of the birds, plus opacity · distance for
         // atmosphere.
@@ -104,7 +111,12 @@ impl Renderer {
             evening,
             colour,
             self.exposure,
+            camera,
         );
+        let target = sky::reed_visibility(camera);
+        let opacity = self.reed_opacity.get_or_insert(target);
+        *opacity += (target - *opacity) * (1.0 - (-dt.max(0.0) / REED_FADE_TAU).exp());
+        sky::draw_reeds_with_opacity(frame, world.time, colour, camera, *opacity);
     }
 
     /// Eases the exposure so the 80th percentile of the flock's optical depth
@@ -126,13 +138,19 @@ impl Renderer {
         };
         if tau80 > 1e-6 {
             let target = (TARGET_TAU / tau80).clamp(EXPOSURE_MIN, EXPOSURE_MAX);
-            self.exposure += (target - self.exposure) * (1.0 - (-dt / EXPOSURE_TAU).exp());
+            if !self.exposure_ready {
+                self.exposure = target;
+                self.exposure_ready = true;
+            } else {
+                self.exposure += (target - self.exposure) * (1.0 - (-dt / EXPOSURE_TAU).exp());
+            }
             self.exposure = self.exposure.clamp(EXPOSURE_MIN, EXPOSURE_MAX);
         }
     }
 }
 
 /// Turns the optical-depth buffer into braille dots and colours the cells.
+#[allow(clippy::too_many_arguments)]
 fn composite(
     frame: &mut Frame,
     depth: &[f32],
@@ -141,14 +159,14 @@ fn composite(
     evening: f32,
     colour: Depth,
     exposure: f32,
+    camera: &Camera,
 ) {
     let area = frame.area();
     let buf = frame.buffer_mut();
     let tex = dither::texture();
     let mask = dither::SIZE - 1;
     for row in 0..area.height {
-        let t = row as f32 / area.height.saturating_sub(1).max(1) as f32;
-        let sky_rgb = sky::sky_colour(t, evening);
+        let sky_rgb = sky::row_colour(row, area.height, evening, camera);
         for col in 0..area.width {
             let mut bits = 0u32;
             let mut sum = 0.0f32;
@@ -175,9 +193,11 @@ fn composite(
             }
             let mean = sum / 8.0;
             // Tint the background toward the ink by the cell's mean opacity (up
-            // to 60 %), so dense parts read as smoke; the braille dots stay for
+            // to 18 %), so dense parts read as smoke; the braille dots stay for
             // detail and edges.
-            let tint = mean.min(0.6);
+            // A little tone helps dense flocks, but strong cell-wide shading
+            // makes a rectangular mosaic instead of fine bird silhouettes.
+            let tint = mean * mean * 0.18;
             let bg_rgb = colour::blend(sky_rgb, colour::INK, tint);
             // The ink is fixed; only atmospheric distance blends it back toward
             // the sky, so silhouettes stay dark near the observer.
@@ -186,12 +206,17 @@ fn composite(
             } else {
                 0.0
             };
-            let atmosphere = (1.0 - mean_dist / splat::ATMOSPHERE).clamp(0.25, 1.0);
+            // Silhouettes remain ink-dark at ordinary observing distances.
+            // The old linear fade made a flock a few hundred metres away grey
+            // on grey, despite auto-exposure restoring all its dither dots.
+            let atmosphere = (-mean_dist / (splat::ATMOSPHERE * 3.0))
+                .exp()
+                .clamp(0.65, 1.0);
             let fg_rgb = colour::blend(sky_rgb, colour::INK, atmosphere);
             let fg = colour::convert(fg_rgb, colour);
             let mut bytes = [0u8; 4];
             let symbol = dither::braille(bits).encode_utf8(&mut bytes);
-            let cell = &mut buf[(col, row)];
+            let cell = &mut buf[(area.x + col, area.y + row)];
             cell.set_symbol(symbol);
             cell.set_fg(fg);
             cell.set_bg(colour::convert(bg_rgb, colour));

@@ -1,8 +1,9 @@
 //! The social and environmental forces a bird sums into its steering force.
 //!
 //! Separation, centrality and cohesion, alignment and the roost pull follow the
-//! StarDisplay equations (Eq. 4–14). A random force stands in for perception
-//! and control noise.
+//! StarDisplay equations (Eq. 4–14), with all-round cohesion and committed
+//! roost returns (documented in DEVELOPMENT.md).
+//! A random force stands in for perception and control noise.
 
 use glam::Vec3;
 use rand::Rng;
@@ -27,6 +28,8 @@ pub struct Decision {
     pub centrality: f32,
     /// Sign of a zigzag to start now (+1 / −1), if the copying rule fired.
     pub start_zigzag: Option<f32>,
+    /// Complete the return turn rather than balancing on the roost boundary.
+    pub returning: bool,
 }
 
 /// Computes bird `i`'s steering force and next interaction radius.
@@ -43,6 +46,7 @@ pub fn decide(
     escape: &[EscapeState],
     time: f32,
     zigzag_k: u32,
+    returning: &[bool],
 ) -> Decision {
     let p = positions[i];
     let r = radii[i];
@@ -56,6 +60,7 @@ pub fn decide(
     let mut n_align = 0u32;
     let mut zigzag_neighbours = 0u32;
     let mut zigzag_sign_sum = 0.0f32;
+    let mut returning_neighbours = 0u32;
 
     // One pass over the topological neighbourhood (Eq. 3).
     grid.for_each_within(p, r, positions, |j, dist| {
@@ -63,6 +68,7 @@ pub fn decide(
             return;
         }
         n_all += 1;
+        returning_neighbours += u32::from(returning[j]);
         let dhat = (positions[j] - p) / dist.max(1e-6);
 
         // Separation over all neighbours, no blind angle (Eq. 4).
@@ -73,14 +79,19 @@ pub fn decide(
         };
         sep -= dhat * g;
 
-        // Cohesion and alignment use the reduced neighbourhood N*_i (Eq. 6).
+        // Cohesion uses spatial awareness on all sides, like separation. Using
+        // only the forward hemisphere pulls even interior birds along their
+        // heading and steadily stretches straight-flying flocks into filaments.
+        // Alignment retains the rear blind sector.
+        if dist > R_H {
+            coh += dhat;
+            n_star += 1;
+        }
+
+        // Alignment uses the reduced neighbourhood N*_i (Eq. 6).
         if f_i.dot(dhat) >= BLIND_COS {
             align += forward(velocities[j]);
             n_align += 1;
-            if dist > R_H {
-                coh += dhat;
-                n_star += 1;
-            }
         }
 
         // Neighbours whose zigzag is old enough to have been perceived. The
@@ -116,7 +127,7 @@ pub fn decide(
 
     // Cohesion, stronger at the border through C_i (Eq. 5).
     if n_star > 0 {
-        force += coh * (W_COH * centrality / n_star as f32);
+        force += coh.normalize_or_zero() * (W_COH * centrality);
     }
 
     // Alignment (Eq. 8): proportional to the misalignment from the mean
@@ -130,18 +141,33 @@ pub fn decide(
     };
     force += a * W_ALIGN;
 
-    // Horizontal roost pull (Eq. 11): a lateral steering force, stronger when
-    // heading outward, that turns the bird back toward the roost. `w_RoostH` is
-    // in N/m, so the force grows with the distance beyond the boundary. The
-    // lateral direction is the one whose component points inward.
+    // A committed return extends Eq. 11 rather than admitting its stable
+    // tangential orbit. Nearby birds can anticipate the return through their
+    // neighbours, so a wide flock does not turn only one boundary slice at a time.
     let horiz = Vec3::new(p.x, p.y, 0.0);
     let dist_h = horiz.length();
-    if dist_h > R_ROOST {
+    let near_boundary = dist_h > R_ROOST * 0.8;
+    let heading_out = dist_h > 1.0 && f_i.dot(horiz / dist_h) > -0.8;
+    let mut returning = returning[i]
+        || dist_h > R_ROOST
+        || (near_boundary && heading_out && returning_neighbours >= 2);
+    if returning && dist_h > 1.0 {
         let n = horiz / dist_h;
         let side = side_of(f_i);
-        let inward_side = side * side.dot(-n);
-        let outward = 0.5 + 0.5 * f_i.dot(n);
-        force += inward_side * (W_ROOST_H * (dist_h - R_ROOST) * outward);
+        // Choose a turning direction, not a radial projection. The projection
+        // vanishes for a bird flying straight out and otherwise settles into a
+        // permanent tangential orbit. A signed lateral request carries the turn
+        // through until the bird heads back over the roost.
+        let inward_side = side * if side.dot(-n) >= 0.0 { 1.0 } else { -1.0 };
+        if f_i.dot(n) < -0.95 {
+            returning = false;
+        } else {
+            // Hysteresis is behavioural memory, not a prescribed path. A bird
+            // outside the display area commits to returning until it faces the
+            // roost. A minimum turn request avoids a force balance that mills
+            // forever at the boundary; neighbours still determine the shape.
+            force += inward_side * (W_ROOST_H * (dist_h - R_ROOST).max(ROOST_TURN_MARGIN));
+        }
     }
 
     // Vertical roost pull toward the preferred height (Eq. 12), capped at
@@ -187,6 +213,7 @@ pub fn decide(
         neighbours: n_all,
         centrality,
         start_zigzag,
+        returning,
     }
 }
 

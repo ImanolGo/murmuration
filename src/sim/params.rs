@@ -83,8 +83,10 @@ pub const W_SEP: f32 = 1.0;
 /// Weighting factor for the alignment force [N]. Table 1.
 pub const W_ALIGN: f32 = 0.5;
 
-/// Weighting factor for the cohesion force [N]. Table 1.
-pub const W_COH: f32 = 1.0;
+/// Weighting factor for unit-direction, all-round cohesion [N]. Adapted from
+/// Table 1's 1 N: 0.65 balances the corrected separation and banked flight
+/// without compressing the flock. See DEVELOPMENT.md.
+pub const W_COH: f32 = 0.65;
 
 /// Cosine of the rear blind angle for cohesion and alignment. The blind sector
 /// is `2 × 45°`, so a neighbour is blind when `f·d̂ < −cos 45°`. Table 1.
@@ -97,11 +99,13 @@ pub const W_XI: f32 = 0.01;
 pub const R_ROOST: f32 = 150.0;
 
 /// Weighting factor for the horizontal roost force [N/m]. Table 1 lists
-/// 0.01 N/m. Eq. 11 is a lateral force that grows with the distance beyond
-/// `R_ROOST`; the stronger 1.0 N/m value is kept for now because the neighbour
-/// noise from the alignment rule (A3) still saturates the bank. Once A2 and A3
-/// are fixed this should return to the Table 1 value.
+/// 0.01 N/m. The display's committed return rule extends Eq. 11; see
+/// [`ROOST_TURN_MARGIN`] and DEVELOPMENT.md.
 pub const W_ROOST_H: f32 = 0.01;
+
+/// Minimum effective overshoot while a bird completes its return turn [m].
+/// Behavioural hysteresis extends the boundary force to avoid a stable orbit.
+pub const ROOST_TURN_MARGIN: f32 = 25.0;
 
 /// Weighting factor for the vertical roost force [N]. Table 1.
 pub const W_ROOST_V: f32 = 0.2;
@@ -109,7 +113,7 @@ pub const W_ROOST_V: f32 = 0.2;
 /// Distance over which the vertical roost force ramps up to its cap `w_RoostV`
 /// [m]. The paper's Eq. 12 is proportional to the height difference; a cap is
 /// needed or the force becomes an arbitrarily stiff spring (see DEVELOPMENT.md).
-pub const H_ROOST_V: f32 = 15.0;
+pub const H_ROOST_V: f32 = 40.0;
 
 /// Preferred flight height above the roost, the "zero level" z0 [m]. The paper
 /// calls it arbitrary; the evening arc varies it. Table 1 (implied).

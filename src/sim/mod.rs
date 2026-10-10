@@ -53,6 +53,8 @@ pub struct World {
     pub neighbour_count: Vec<u32>,
     /// Centrality `C_i` from each bird's last decision.
     pub centrality: Vec<f32>,
+    /// Birds committed to an inward turn after leaving the display area.
+    pub returning: Vec<bool>,
     /// Per-bird escape state (alarm, zigzag, flash expansion).
     pub escape: Vec<EscapeState>,
     /// The falcon, if one is hunting.
@@ -73,10 +75,10 @@ pub struct World {
 }
 
 impl World {
-    /// Creates `n` birds already milling over the roost: spread across a disc
-    /// and flying tangentially, so the display does not start with the whole
-    /// flock translating to one place. (The paper starts birds at random
-    /// positions and orientations; the evening arc spawns arriving groups.)
+    /// Creates a compact, slightly flattened flock near the roost edge, nearly
+    /// aligned at cruise speed. The social and return rules develop its display.
+    /// (The paper starts birds at random positions and orientations; the evening
+    /// arc instead spawns arriving groups.)
     pub fn new(n: usize, seed: u64) -> Self {
         let z0 = Z0;
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
@@ -120,6 +122,7 @@ impl World {
             next_decision,
             neighbour_count: vec![0; n],
             centrality: vec![0.0; n],
+            returning: vec![false; n],
             escape: vec![EscapeState::default(); n],
             falcon: None,
             zigzag_k: ZIGZAG_K,
@@ -154,6 +157,7 @@ impl World {
             .push(self.time + rng.random_range(0.0..DU));
         self.neighbour_count.push(0);
         self.centrality.push(0.0);
+        self.returning.push(false);
         self.escape.push(EscapeState::default());
         self.rngs
             .push(ChaCha8Rng::seed_from_u64(mix(self.seed, i as u64)));
@@ -172,6 +176,7 @@ impl World {
         self.next_decision.swap_remove(i);
         self.neighbour_count.swap_remove(i);
         self.centrality.swap_remove(i);
+        self.returning.swap_remove(i);
         self.escape.swap_remove(i);
         self.rngs.swap_remove(i);
     }
@@ -203,6 +208,7 @@ impl World {
         self.next_decision.clear();
         self.neighbour_count.clear();
         self.centrality.clear();
+        self.returning.clear();
         self.escape.clear();
         self.rngs.clear();
     }
@@ -341,6 +347,7 @@ impl World {
                 next_decision,
                 neighbour_count,
                 centrality,
+                returning,
                 rngs,
                 grid,
                 escape,
@@ -367,6 +374,7 @@ impl World {
                             escape,
                             time,
                             k,
+                            returning,
                         ));
                     }
                 });
@@ -378,6 +386,7 @@ impl World {
                 radii[i] = d.radius;
                 neighbour_count[i] = d.neighbours;
                 centrality[i] = d.centrality;
+                returning[i] = d.returning;
                 if let Some(sign) = d.start_zigzag {
                     escape[i].zigzag_start = time;
                     escape[i].zigzag_active = true;

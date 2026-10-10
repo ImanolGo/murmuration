@@ -33,17 +33,24 @@ pub struct Arc {
     base_z0: f32,
     rng: ChaCha8Rng,
     spawn_timer: f32,
+    arrival_bearing: f32,
+    arrival_radius: f32,
 }
 
 impl Arc {
     /// A new evening of `minutes` minutes.
     pub fn new(minutes: f32, seed: u64) -> Self {
+        let mut rng = ChaCha8Rng::seed_from_u64(seed ^ 0x00A2_C0FE);
+        let arrival_bearing = rng.random_range(0.0..std::f32::consts::TAU);
+        let arrival_radius = rng.random_range(280.0..320.0);
         Self {
             duration: (minutes * 60.0).max(1.0),
             time: 0.0,
             base_z0: Z0,
-            rng: ChaCha8Rng::seed_from_u64(seed ^ 0x00A2_C0FE),
+            rng,
             spawn_timer: 0.0,
+            arrival_bearing,
+            arrival_radius,
         }
     }
 
@@ -80,6 +87,8 @@ impl Arc {
         self.time += dt;
         if self.time >= self.duration {
             self.time -= self.duration;
+            self.arrival_bearing = self.rng.random_range(0.0..std::f32::consts::TAU);
+            self.arrival_radius = self.rng.random_range(280.0..320.0);
         }
         match self.phase() {
             Phase::Arrival => {
@@ -109,30 +118,30 @@ impl Arc {
     }
 
     fn spawn_group(&mut self, world: &mut World, count: usize) {
-        let bearing = self.rng.random_range(0.0..std::f32::consts::TAU);
-        let radius = self.rng.random_range(250.0..350.0);
-        let height = self.base_z0 + self.rng.random_range(-20.0..60.0);
+        // A shared approach corridor lets arriving groups meet with compatible
+        // headings. Random antipodal approaches to unrelated targets created
+        // opposing streams that passed through one another instead of gathering.
+        let bearing = self.arrival_bearing + self.rng.random_range(-0.045..0.045);
+        let radius = self.arrival_radius + self.rng.random_range(-8.0..8.0);
+        let height = self.base_z0 + self.rng.random_range(-10.0..10.0);
         let base = Vec3::new(radius * bearing.cos(), radius * bearing.sin(), height);
-        // Each group heads for its own point over the roost, so groups merge
-        // rather than all converging on the centre.
         let target = Vec3::new(
-            self.rng.random_range(-90.0..90.0),
-            self.rng.random_range(-90.0..90.0),
+            self.rng.random_range(-20.0..20.0),
+            self.rng.random_range(-20.0..20.0),
             self.base_z0,
         );
+        let radius = (count as f32).cbrt() * 1.9;
         for _ in 0..count {
-            let pos = base
-                + Vec3::new(
-                    self.rng.random_range(-30.0..30.0),
-                    self.rng.random_range(-30.0..30.0),
-                    self.rng.random_range(-10.0..10.0),
-                );
+            let offset = super::social::random_unit(&mut self.rng)
+                * radius
+                * self.rng.random::<f32>().cbrt();
+            let pos = base + Vec3::new(offset.x, offset.y, offset.z * 0.6);
             let toward = target - pos;
             let dir = (toward.normalize_or_zero()
                 + Vec3::new(
-                    self.rng.random_range(-0.2..0.2),
-                    self.rng.random_range(-0.2..0.2),
-                    self.rng.random_range(-0.1..0.1),
+                    self.rng.random_range(-0.05..0.05),
+                    self.rng.random_range(-0.05..0.05),
+                    self.rng.random_range(-0.025..0.025),
                 ))
             .normalize_or_zero();
             world.push_bird(pos, dir * V0, &mut self.rng);

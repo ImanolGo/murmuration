@@ -326,11 +326,13 @@ fn probe_coverage(world: &World, w: u16, h: u16) -> f32 {
         .unwrap();
     let buf = terminal.backend().buffer();
     let mut lit = 0u32;
-    for y in 0..h {
+    // Ignore the whole foreground band: fading stems no longer have a fixed
+    // ink colour that can reliably identify them.
+    for y in 0..h.saturating_sub(murmuration::render::sky::REED_MAX_ROWS) {
         for x in 0..w {
             if let Some(c) = buf[(x, y)].symbol().chars().next() {
                 let u = c as u32;
-                if (0x2801..=0x28FF).contains(&u) {
+                if (0x2801..=0x28FF).contains(&u) && buf[(x, y)].fg != Color::Rgb(12, 24, 16) {
                     lit += 1;
                 }
             }
@@ -405,7 +407,8 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
             }
         }
 
-        let completed = terminal.draw(|frame| renderer.draw(frame, &world, &camera, dt))?;
+        let completed = terminal
+            .draw(|frame| renderer.draw(frame, &world, &camera, if paused { 0.0 } else { dt }))?;
         if save_requested {
             save_requested = false;
             let path = format!("murmuration-frame-seed{seed}-{:.1}s.ansi", world.time);

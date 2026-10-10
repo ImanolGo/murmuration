@@ -3,6 +3,8 @@
 #   cargo build --release
 #   vhs docs/murmuration.tape
 #
+# If browser capture stalls, use `python3 docs/record.py` (POSIX, Pillow, ffmpeg).
+#
 Output docs/murmuration.gif
 
 Set FontFamily "DejaVu Sans Mono"
@@ -10,14 +12,15 @@ Set FontSize 15
 Set Width 960
 Set Height 560
 Set Padding 16
-Set Framerate 12
+Set Framerate 25
 Set CursorBlink false
 
 Hide
-Type "./target/release/murmuration --no-arc --falcon --seed 7 --birds 2000"
+Type "./target/release/murmuration --no-arc --falcon --seed 42 --birds 4000 --colors truecolor --no-mouse"
 Enter
 Sleep 3s
 Show
 Sleep 42s
+Hide
 Type "q"
 Sleep 1s

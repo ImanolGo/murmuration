@@ -2,7 +2,7 @@
 //!
 //! The M1 tests pass on a degenerate flock, so these check the review's part-D
 //! targets on the same 4-minute probe (2000 birds, seed 0) that `--probe` runs.
-//! Targets that are still open (roost rotation/crossing and the aspect-ratio
+//! Targets that are still open (signed roost rotation and the aspect-ratio
 //! hard limit) are printed rather than asserted; see DEVELOPMENT.md.
 
 use murmuration::sim::World;
@@ -68,9 +68,15 @@ fn part_d_targets() {
     let i2_i1 = mean(|s| s.i2_i1);
     assert!(i2_i1 < 10.0, "I2/I1 {i2_i1:.1} (hard limit < 10)");
 
+    // A committed return must pass over the roost, not settle into an orbit.
+    let gap = longest_gap(&radii);
+    assert!(
+        gap <= 120.0,
+        "flock did not return over the roost for {gap:.0} s"
+    );
+
     // Accepted gaps: reported, not asserted (see DEVELOPMENT.md).
     let rotation = mean(|s| s.tangential);
-    let gap = longest_gap(&radii);
     let i3_i1 = mean(|s| s.i3_i1);
     println!(
         "part-D gaps: mean tangential {rotation:.2} m/s (target |.| < 0.5), \

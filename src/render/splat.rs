@@ -54,22 +54,7 @@ pub fn splat(
         let a = (0.15 + 0.85 * wing) * atmosphere;
 
         let rho = WINGSPAN * focal / z;
-        if rho < 1.0 {
-            let v = a * rho * rho;
-            bilinear(depth, dist, pixel_w, pixel_h, sx, sy, v, v * z);
-        } else {
-            gaussian(
-                depth,
-                dist,
-                pixel_w,
-                pixel_h,
-                sx,
-                sy,
-                a,
-                a * z,
-                (rho * 0.5).min(8.0),
-            );
-        }
+        footprint(depth, dist, pixel_w, pixel_h, sx, sy, a, z, rho.min(16.0));
     }
 
     // The falcon, drawn a little larger and darker than a starling.
@@ -79,22 +64,36 @@ pub fn splat(
         let atmosphere = (1.0 - z / ATMOSPHERE).clamp(0.25, 1.0);
         let a = 1.6 * atmosphere;
         let rho = FALCON_WINGSPAN * focal / z;
-        if rho < 1.0 {
-            let v = a * rho * rho;
-            bilinear(depth, dist, pixel_w, pixel_h, sx, sy, v, v * z);
-        } else {
-            gaussian(
-                depth,
-                dist,
-                pixel_w,
-                pixel_h,
-                sx,
-                sy,
-                a,
-                a * z,
-                (rho * 0.5).min(12.0),
-            );
-        }
+        footprint(depth, dist, pixel_w, pixel_h, sx, sy, a, z, rho.min(24.0));
+    }
+}
+
+/// Blend continuously between unresolved and resolved birds. Both kernels
+/// carry the same optical mass; the old switch at one pixel suddenly added
+/// roughly 57% darkness as a bird approached the camera.
+#[allow(clippy::too_many_arguments)]
+fn footprint(
+    depth: &mut [f32],
+    dist: &mut [f32],
+    w: usize,
+    h: usize,
+    x: f32,
+    y: f32,
+    a: f32,
+    z: f32,
+    rho: f32,
+) {
+    let mix = (rho - 1.0).clamp(0.0, 1.0);
+    let mix = mix * mix * (3.0 - 2.0 * mix);
+    let mass = a * rho * rho;
+    if mix < 1.0 {
+        let value = mass * (1.0 - mix);
+        bilinear(depth, dist, w, h, x, y, value, value * z);
+    }
+    if mix > 0.0 {
+        let sigma = rho * 0.5;
+        let peak = mass * mix / (std::f32::consts::TAU * sigma * sigma);
+        gaussian(depth, dist, w, h, x, y, peak, peak * z, sigma);
     }
 }
 
@@ -160,5 +159,25 @@ fn gaussian(
             depth[idx] += peak * g;
             dist[idx] += peak_dist * g;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn footprint_does_not_pop_at_one_pixel() {
+        let mut masses = Vec::new();
+        for rho in [0.99, 1.01, 1.99, 2.01] {
+            let mut depth = vec![0.0; 32 * 32];
+            let mut dist = depth.clone();
+            footprint(&mut depth, &mut dist, 32, 32, 16.3, 16.4, 1.0, 100.0, rho);
+            let mass: f32 = depth.iter().sum();
+            assert!((mass / (rho * rho) - 1.0).abs() < 0.03);
+            masses.push(mass);
+        }
+        assert!(masses[1] / masses[0] < 1.05);
+        assert!(masses[3] / masses[2] < 1.05);
     }
 }

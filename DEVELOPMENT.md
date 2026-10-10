@@ -8,6 +8,11 @@ itself internally inconsistent, the deviation and the reason are recorded here.
 
 ## Status
 
+The milestone measurements below are historical. The visual/motion corrections
+in **Visual review follow-up** supersede the earlier camera, cohesion, roost,
+sky and foreground descriptions; they are explicit model adaptations, not a
+claim to reproduce StarDisplay exactly.
+
 | Milestone | State |
 | --- | --- |
 | M0 Skeleton | done |
@@ -25,6 +30,170 @@ cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```
+
+## Visual review follow-up
+
+### What was actually wrong
+
+Recorded the live terminal with VHS and inspected rendered sequences, not just
+flock statistics. The old output had a clipped, off-centre flock, strong
+rectangular cell shading, conspicuous sky bands, and a blocky skyline that was
+supposed to be a reed bed. Longer headless runs exposed the persistent orbit
+and increasing elongation. A compressed full evening additionally showed many
+unrelated incoming streams instead of a gathering flock.
+
+### Motion and model adaptations
+
+- **One source of lateral acceleration.** Lateral steering now requests bank;
+  banked lift supplies the sideways force. Previously the integrator added the
+  lateral steering directly *and* through lift, doubling steady turning and
+  allowing sideways sliding before the bird rolled. Forward and vertical
+  steering remain direct controls.
+- **All-round, unit-direction cohesion.** Alignment still has the rear blind
+  sector, but cohesion uses all the spatial neighbours, like separation. The
+  old forward-only mean-direction force biased even interior birds forward and
+  allowed long filaments. Cohesion uses the unit resultant scaled by centrality,
+  with `W_COH = 0.65 N`; the full 1 N compressed nearest-neighbour spacing too
+  much. This departs from StarDisplay's blind sector for cohesion.
+- **Committed returns.** A bird beyond the roost boundary keeps an inward turn
+  request until it faces inward (`f·n < -0.95`). The turn has a minimum effective
+  overshoot of 25 m. Outward-heading birds in the outer 20% of the roost can
+  anticipate it when two neighbours are returning. This behavioural memory
+  prevents the old force balance at the circular boundary and reduces the
+  slice-by-slice shearing of a wide flock. There is no global flock path, shape
+  target or imposed heading animation. This is an extension of Eq. 11, not the
+  original equation or evidence of the literature's turning-wave linearity.
+- **Vertical preference.** The capped 0.2 N preference ramps over 40 m, rather
+  than 15 m. It remains a preferred height, not a hard flight plane.
+- **Arrival conditions.** Compact, similarly headed groups approach through a
+  seeded corridor with bearing variation and nearby roost targets. Independent
+  random bearings, 60 m-wide sparse groups and unrelated ±90 m targets created
+  opposing streams that simply passed through each other. The corridor changes
+  each evening. This changes initial conditions, not flock shapes.
+
+### Drawing and camera
+
+- Fit **both** projected dimensions. The previous wide-terminal branch ignored
+  horizontal extent and hid elongation by zooming into a clipped ribbon.
+- Feed forward the flock's translation when easing the gaze; the old 2 s lag
+  watched empty sky behind moving birds and widened the lens to cover the error.
+  Initialise framing immediately, open the lens in 0.6 s when necessary, and
+  tighten it slowly (3 s). The observer remains at a fixed ground position.
+- Keep dark silhouettes at normal observing distances. Reduce cell-wide tint
+  to at most 18%, avoiding the old checkerboard/mosaic texture. Initialise
+  exposure from the first visible flock and then adapt slowly. Pausing also
+  freezes exposure.
+- Blend unresolved bilinear footprints into resolved Gaussians continuously,
+  with matching optical mass. The old one-pixel switch jumped by about 57% in
+  darkness as a bird approached the camera.
+- Sample sky colour by viewing elevation, with a quieter dusk palette. The
+  horizon no longer travels up the screen with the flock. Half-blocks provide
+  two gradient samples per cell, and fixed sub-one-RGB-level stochastic rounding
+  softens colour banding without animated background noise.
+- Replace solid, height-jumping columns with fine reed stems and seed heads;
+  wind bends tips sideways. Draw them after the flock, so birds cannot overwrite
+  the foreground. Reeds are omitted in high-sky close-ups, where a landscape
+  pinned to the bottom would be physically inappropriate.
+
+Follow-up: the original horizon visibility check (`bottom_ray.z > 0.15`) was a
+hard switch, so tracking and zooming could make the entire reed band pop in and
+out. Visibility now uses a smooth angular band (`z = 0.05–0.25`) plus a 0.6 s
+temporal ease. Coloured output fades stems towards the actual background; mono
+output progressively thins a fixed dot pattern. The wind geometry stays unchanged,
+and pausing freezes the transition. Regression checks cover both fade directions,
+the former angular cutoff, and truecolour/256-colour/mono output. Coverage metrics
+exclude the entire foreground band, including partially faded stems.
+
+### Reproducing the visual checks
+
+`examples/preview.rs` runs the **actual renderer** at 30 simulated frames/s and
+exports SVG frames every ten simulated seconds plus flock statistics. Braille
+dots are plotted directly (the live VHS recordings also check the actual font).
+It does not hand-draw or otherwise replace the simulation's output.
+
+```sh
+cargo run --release --example preview -- /tmp/opencode/display 0 2000 240
+cargo run --release --example preview -- /tmp/opencode/falcon 7 4000 120 falcon 80 24
+cargo run --release --example preview -- /tmp/opencode/evening 42 2000 120 arc
+cargo run --release -- --probe --seed 0 --birds 2000
+```
+
+Regression checks cover lateral slip, both-axis framing, translational camera
+tracking, continuous footprint mass, sky elevation, fine/stable foreground,
+truecolour/256-colour/mono rendering, and roost crossing. Flock coverage excludes
+reed dots, so the foreground cannot manufacture a passing coverage result.
+
+### Current measurements and remaining limits
+
+The original M1 hard criteria remain unchanged and pass (2000 birds, seed 42,
+120 s, averaged after 30 s):
+
+| Statistic | Measured |
+| --- | --- |
+| Interaction neighbours | 6.62 |
+| Nearest-neighbour distance | 0.77 m |
+| Horizontal flock-plane alignment | 0.899 |
+| Height standard deviation | 2.06 m |
+| Nearest-neighbour axial fraction | 0.094 |
+| Largest 5 m single-link cluster | stays above the 95% hard target |
+
+The four-minute seed-0 part-D test also passes the existing bank, thickness and
+`I2/I1` checks, and now **asserts** roost crossing: the longest interval without
+the centroid coming within 60 m is **29 s**, rather than an entire run spent
+orbiting at the boundary.
+
+The final `--probe` (seed 0, 2000 birds, 240 s) reports **0%** at the bank clamp,
+mean bank **6.8°**, mean height standard deviation **2.14 m**, settled-frame
+coverage **24.2%**, and agitation speed **7.6 m/s**. Its final-frame inertia
+ratios are 2.6 / 5.9; these are a single frame, **not** the time averages below.
+The release benchmark for 4000 birds measured **86.4 fps** at 80×24 and
+**71.2 fps** at 200×60, even while the live recording ran alongside it.
+
+The tightened incoming corridor was also checked in a 120 s compressed evening
+(seed 42, 2000 birds): the largest cluster reaches 100% at t=10 s and remains
+above 99% through t=50 s, instead of the old unrelated streams. Later turns can
+still split it (about 79% at t=60–80 s), as noted below.
+
+### Live recording validation
+
+The pseudo-terminal smoke test exits cleanly and writes distinct saved frames at
+2.7, 5.7 and 8.7 simulated seconds in an 11 s real-time run. This checks the
+live loop independently of the headless example.
+
+VHS 0.12.1 in this environment produced a stalled browser capture: 610 of 620
+GIF frames were identical, despite the live simulation continuing normally.
+Do not use that recording as evidence of motion quality. `docs/record.py` is a
+browser-free fallback used for the updated README GIF. It drives the real binary
+in a pseudo-terminal, captures its saved truecolour ANSI buffers, rasterises the
+actual braille font, and preserves **simulation timestamps** in the GIF. A 3 s
+smoke recording produced 20 distinct frames out of 20. The VHS recipe remains
+available for environments where browser capture works.
+
+```sh
+cargo build --release
+python3 docs/record.py
+```
+
+The optional recorder requires POSIX, Pillow, ffmpeg and a monospace font with
+braille glyphs; none are runtime dependencies of the Rust application. It uses
+fontconfig when available, or accepts `--font /path/to/font.ttf`, and rejects a
+font that renders braille as missing-glyph boxes.
+
+The refreshed README recording includes the smooth foreground fades, contains
+**417 distinct frames out of 417**, and spans **44.04 simulated seconds**. Playback
+and glyph checks confirm moving output rather than stalled frames or missing-font
+boxes.
+
+### Remaining limits
+
+There are still real model limitations. Mean signed tangential velocity is
+**5.89 m/s**, so the flock retains a preferred turning sense even though it no
+longer traces the old fixed circle. Mean `I3/I1` is **26.4**, above the review's
+hard suggestion of 20. Falcon attacks and arriving groups can produce separate
+subflocks, and a short compressed evening is not equivalent to a 15-minute one:
+birds have less physical time to merge and descend. The literature's linear
+turning-wave result is still not claimed. These are reported limitations, not
+passing assertions or effects hidden by camera clipping.
 
 ## M1 — headless flock
 
