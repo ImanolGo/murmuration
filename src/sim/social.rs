@@ -8,6 +8,8 @@ use glam::Vec3;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
+use super::escape::{self, EscapeState};
+use super::falcon::Falcon;
 use super::flight::{forward, side_of};
 use super::neighbours::Grid;
 use super::params::*;
@@ -23,9 +25,12 @@ pub struct Decision {
     pub neighbours: u32,
     /// Centrality `C_i` (Eq. 7): near 0 inside the flock, ~0.5–0.75 at the edge.
     pub centrality: f32,
+    /// Sign of a zigzag to start now (+1 / −1), if the copying rule fired.
+    pub start_zigzag: Option<f32>,
 }
 
 /// Computes bird `i`'s steering force and next interaction radius.
+#[allow(clippy::too_many_arguments)]
 pub fn decide(
     i: usize,
     positions: &[Vec3],
@@ -34,6 +39,10 @@ pub fn decide(
     grid: &Grid,
     rng: &mut ChaCha8Rng,
     z0: f32,
+    falcon: Option<&Falcon>,
+    escape: &[EscapeState],
+    time: f32,
+    zigzag_k: u32,
 ) -> Decision {
     let p = positions[i];
     let r = radii[i];
@@ -45,6 +54,7 @@ pub fn decide(
     let mut n_all = 0u32;
     let mut n_star = 0u32;
     let mut n_align = 0u32;
+    let mut zigzag_neighbours = 0u32;
 
     // One pass over the topological neighbourhood (Eq. 3).
     grid.for_each_within(p, r, positions, |j, dist| {
@@ -70,6 +80,11 @@ pub fn decide(
                 coh += dhat;
                 n_star += 1;
             }
+        }
+
+        // Neighbours that started a zigzag within the last reaction time.
+        if time - escape[j].zigzag_start <= DU {
+            zigzag_neighbours += 1;
         }
     });
 
@@ -131,11 +146,27 @@ pub fn decide(
     // Random force (Eq. 13).
     force += random_unit(rng) * W_XI;
 
+    // Flee and flash expansion.
+    force += escape::force(p, falcon, escape[i].flash_until, time);
+
+    // Copy a zigzag: a non-alarmed bird starts one when at least `zigzag_k` of
+    // its neighbours started one within the last reaction time.
+    let start_zigzag = if !escape[i].alarmed
+        && !escape[i].zigzag_active
+        && time >= escape[i].cooldown_until
+        && zigzag_neighbours >= zigzag_k
+    {
+        Some(if rng.random::<bool>() { 1.0 } else { -1.0 })
+    } else {
+        None
+    };
+
     Decision {
         force,
         radius: radius_step(r, n_all),
         neighbours: n_all,
         centrality,
+        start_zigzag,
     }
 }
 

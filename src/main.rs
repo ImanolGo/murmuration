@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use clap::Parser;
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind, MouseEventKind};
 use murmuration::render::{Camera, Renderer};
 use murmuration::sim::params::DT;
 use murmuration::sim::{World, analysis};
@@ -19,6 +19,15 @@ struct Cli {
     /// and R², then exit.
     #[arg(long)]
     turns: bool,
+    /// Run the agitation-wave experiment (falcon attack) headless and exit.
+    #[arg(long)]
+    agitation: bool,
+    /// Copying threshold k for the zigzag wave (1–7).
+    #[arg(long, default_value_t = 2)]
+    zigzag_k: u32,
+    /// A falcon hunts from the start.
+    #[arg(long)]
+    falcon: bool,
     /// Forced-turn experiment: birds disturbed.
     #[arg(long, default_value_t = 100)]
     turn_side: usize,
@@ -44,22 +53,29 @@ fn main() -> Result<()> {
     let seed = cli.seed.unwrap_or(0);
 
     if let Some(seconds) = cli.analyze {
-        analyze(seconds, cli.birds, seed);
+        analyze(seconds, cli.birds, seed, cli.falcon);
         return Ok(());
     }
     if cli.turns {
         turns(cli.birds, seed, &cli);
         return Ok(());
     }
+    if cli.agitation {
+        agitation(cli.birds, seed, cli.zigzag_k);
+        return Ok(());
+    }
 
     let mut terminal = ratatui::init();
-    let result = run(&mut terminal, cli.birds, seed);
+    let result = run(&mut terminal, cli.birds, seed, &cli);
     ratatui::restore();
     result
 }
 
-fn analyze(seconds: f32, birds: usize, seed: u64) {
+fn analyze(seconds: f32, birds: usize, seed: u64, with_falcon: bool) {
     let mut world = World::new(birds, seed);
+    if with_falcon {
+        world.spawn_falcon();
+    }
     let steps = (seconds / DT).max(0.0) as usize;
     let per_second = (1.0 / DT).round() as usize;
     println!("# murmuration --analyze birds={birds} seed={seed} seconds={seconds}");
@@ -124,8 +140,12 @@ fn turns(birds: usize, seed: u64, cli: &Cli) {
     println!("binned distance:mean arrival  {line}");
 }
 
-fn run(terminal: &mut ratatui::DefaultTerminal, birds: usize, seed: u64) -> Result<()> {
+fn run(terminal: &mut ratatui::DefaultTerminal, birds: usize, seed: u64, cli: &Cli) -> Result<()> {
     let mut world = World::new(birds, seed);
+    world.zigzag_k = cli.zigzag_k;
+    if cli.falcon {
+        world.spawn_falcon();
+    }
     let mut camera = Camera::new();
     let mut renderer = Renderer::new();
     camera.update(&world, 1.0);
@@ -150,12 +170,56 @@ fn run(terminal: &mut ratatui::DefaultTerminal, birds: usize, seed: u64) -> Resu
 
         terminal.draw(|frame| renderer.draw(frame, &world, &camera))?;
 
-        if event::poll(Duration::from_millis(16))?
-            && let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press
-            && matches!(key.code, KeyCode::Char('q') | KeyCode::Esc)
-        {
-            return Ok(());
+        if event::poll(Duration::from_millis(16))? {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                    KeyCode::Char('f') => world.spawn_falcon(),
+                    _ => {}
+                },
+                Event::Mouse(mouse)
+                    if matches!(mouse.kind, MouseEventKind::Moved) && world.falcon.is_some() =>
+                {
+                    let size = terminal.size()?;
+                    let plane = flock_centroid(&world);
+                    if let Some(falcon) = &mut world.falcon {
+                        falcon.mode = murmuration::sim::falcon::Mode::Mouse;
+                        falcon.target = camera.cursor_to_plane(
+                            mouse.column,
+                            mouse.row,
+                            size.width as usize * 2,
+                            size.height as usize * 4,
+                            plane,
+                        );
+                    }
+                }
+                _ => {}
+            }
         }
     }
+}
+
+/// Mean position of the flock.
+fn flock_centroid(world: &World) -> glam::Vec3 {
+    if world.is_empty() {
+        glam::Vec3::ZERO
+    } else {
+        world.position.iter().copied().sum::<glam::Vec3>() / world.len() as f32
+    }
+}
+
+fn agitation(birds: usize, seed: u64, k: u32) {
+    let mut world = World::new(birds, seed);
+    world.zigzag_k = k;
+    let r = murmuration::sim::escape::measure_agitation(&mut world, 4.0);
+    println!("# murmuration --agitation birds={birds} seed={seed} k={k}");
+    println!(
+        "wave speed = {:.2} m/s, R2 = {:.3}, samples = {}, peak alarmed = {:.0}%, \
+         peak expansion = {:.0}%",
+        r.speed,
+        r.r2,
+        r.samples,
+        r.peak_alarmed * 100.0,
+        r.peak_expansion * 100.0,
+    );
 }

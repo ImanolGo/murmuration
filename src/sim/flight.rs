@@ -37,8 +37,17 @@ pub fn body_up(f: Vec3, beta: f32) -> Vec3 {
     up0 * beta.cos() + side * beta.sin()
 }
 
-/// Advances one bird by `dt` under its held steering force.
-pub fn step_bird(p: &mut Vec3, v: &mut Vec3, roll: &mut f32, steering: Vec3, dt: f32) {
+/// Advances one bird by `dt` under its held steering force. When
+/// `forced_roll` is `Some`, that bank angle overrides the steering-driven
+/// banking (used by the zigzag manoeuvre).
+pub fn step_bird(
+    p: &mut Vec3,
+    v: &mut Vec3,
+    roll: &mut f32,
+    steering: Vec3,
+    forced_roll: Option<f32>,
+    dt: f32,
+) {
     let f = forward(*v);
     let side = side_of(f);
     let speed = v.length().max(1e-6);
@@ -47,7 +56,10 @@ pub fn step_bird(p: &mut Vec3, v: &mut Vec3, roll: &mut f32, steering: Vec3, dt:
     let al = steering.dot(side) / MASS;
     let beta_in = (W_BETA_IN * al * dt).atan();
     let beta_out = (W_BETA_OUT * roll.sin() * dt).atan();
-    let beta = (*roll + beta_in - beta_out).clamp(-MAX_BANK, MAX_BANK);
+    let beta = match forced_roll {
+        Some(target) => target.clamp(-MAX_BANK, MAX_BANK),
+        None => (*roll + beta_in - beta_out).clamp(-MAX_BANK, MAX_BANK),
+    };
     *roll = beta;
 
     let up = body_up(f, beta);
@@ -84,7 +96,7 @@ mod tests {
         let mut v = Vec3::X * V0;
         let mut roll = 0.0;
         for _ in 0..200 {
-            step_bird(&mut p, &mut v, &mut roll, Vec3::ZERO, DT);
+            step_bird(&mut p, &mut v, &mut roll, Vec3::ZERO, None, DT);
         }
         assert!((p.z - 100.0).abs() < 1.0, "sank or climbed: z = {}", p.z);
         assert!(
@@ -102,7 +114,7 @@ mod tests {
         let mut roll = 0.0;
         for _ in 0..400 {
             // Re-decide a small rightward force each step.
-            step_bird(&mut p, &mut v, &mut roll, Vec3::Y * 0.5, DT);
+            step_bird(&mut p, &mut v, &mut roll, Vec3::Y * 0.5, None, DT);
         }
         assert!(roll.abs() > 0.05, "did not bank: beta = {roll}");
         assert!(v.y.abs() > 1.0, "did not turn: v = {v}");

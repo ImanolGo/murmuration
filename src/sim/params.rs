@@ -111,6 +111,53 @@ pub const REED_TOP: f32 = 3.0;
 /// Uniform grid cell size for neighbour search [m]. PLAN.md.
 pub const GRID_CELL: f32 = 4.0;
 
+// --- Escape and predation (PLAN.md "Escape"; Hemelrijk et al. 2015) ---
+
+/// A bird is alarmed when the falcon is within this distance [m]. PLAN.md.
+pub const R_THREAT: f32 = 30.0;
+
+/// Weighting of the flee force away from the falcon [N]. PLAN.md.
+pub const W_FLEE: f32 = 2.0;
+
+/// Flash expansion triggers inside this distance [m]. PLAN.md.
+pub const R_FLASH: f32 = 8.0;
+
+/// ...and when the falcon is moving faster than this [m/s]. PLAN.md.
+pub const V_FLASH: f32 = 20.0;
+
+/// Strength of the flash-expansion impulse [N]. PLAN.md.
+pub const W_FLASH: f32 = 12.0;
+
+/// How long the flash expansion lasts [s]. PLAN.md.
+pub const FLASH_DURATION: f32 = 0.3;
+
+/// Peak zigzag bank angle [rad]. Hemelrijk et al. 2015 (target roll ±50°).
+pub const ZIGZAG_MAX_ROLL: f32 = 50.0 * std::f32::consts::PI / 180.0;
+
+/// Duration of one zigzag manoeuvre [s]. Hemelrijk et al. 2015.
+pub const ZIGZAG_DURATION: f32 = 0.6;
+
+/// A bird cannot start another zigzag for this long [s]. PLAN.md.
+pub const ZIGZAG_COOLDOWN: f32 = 1.5;
+
+/// Default number of neighbours whose zigzag starts a copy. PLAN.md (1–7).
+pub const ZIGZAG_K: u32 = 2;
+
+// --- Falcon (PLAN.md "Falcon") ---
+
+/// Cruising speed of the falcon outside the flock [m/s]. PLAN.md.
+pub const FALCON_CRUISE: f32 = 15.0;
+/// Climb speed [m/s]. PLAN.md.
+pub const FALCON_CLIMB: f32 = 15.0;
+/// Stooping speed through the flock [m/s]. PLAN.md (25–35).
+pub const FALCON_STOOP: f32 = 30.0;
+/// Height above the flock the falcon climbs before stooping [m]. PLAN.md.
+pub const FALCON_ATTACK_HEIGHT: f32 = 40.0;
+/// How often the autonomous falcon attacks [s, min..max]. PLAN.md (5–20).
+pub const FALCON_ATTACK_MIN: f32 = 5.0;
+/// See [`FALCON_ATTACK_MIN`].
+pub const FALCON_ATTACK_MAX: f32 = 20.0;
+
 /// Advances an adaptive interaction radius toward `n_c` partners.
 ///
 /// The paper's text describes the rule as "increased if `|N_i|` is smaller than

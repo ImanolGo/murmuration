@@ -127,4 +127,27 @@ impl Camera {
             depth,
         ))
     }
+
+    /// The point under the cursor, on the plane through `plane_point` facing the
+    /// camera. `col`/`row` are terminal cell coordinates.
+    pub fn cursor_to_plane(
+        &self,
+        col: u16,
+        row: u16,
+        pixel_w: usize,
+        pixel_h: usize,
+        plane_point: Vec3,
+    ) -> Vec3 {
+        let f = self.focal_px(pixel_h);
+        let ndc_x = (col as f32 * 2.0 - pixel_w as f32 / 2.0) / f;
+        let ndc_y = (row as f32 * 4.0 - pixel_h as f32 / 2.0) / f;
+        let dir = (self.forward + self.right * ndc_x - self.up * ndc_y).normalize();
+        let normal = self.forward;
+        let denom = dir.dot(normal);
+        if denom.abs() < 1e-6 {
+            return plane_point;
+        }
+        let t = (plane_point - self.eye).dot(normal) / denom;
+        self.eye + dir * t
+    }
 }

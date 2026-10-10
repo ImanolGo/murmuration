@@ -14,6 +14,7 @@ itself internally inconsistent, the deviation and the reason are recorded here.
 | M1 Headless flock | done |
 | M2 First light | done |
 | M3 Turns | measurement done; linear wave not emerging (see below) |
+| M4 Falcon | mechanics done; agitation wave propagates but is faster than the literature range (see below) |
 
 Build and checks (must be green before every commit):
 
@@ -194,3 +195,49 @@ This is reported rather than faked: no extra rule was added to manufacture a
 wave, and the shape is not forced. The next step, if the wave is required for
 0.1, is to build the deferred inertial variant and compare, rather than twist
 the base model.
+
+## M4 — falcon (mechanics done; agitation speed above range)
+
+`sim/` (`escape.rs`, `falcon.rs`):
+
+- **Falcon.** Autonomous state machine (cruise → climb above the flock → stoop
+  through it → retreat → repeat every 5–20 s; speeds per PLAN.md), and a
+  mouse-driven mode that chases the point under the cursor (a ray through the
+  cursor onto the plane through the flock centroid). `f` releases the falcon.
+- **Bird response.** Alarm within `r_threat = 30 m`; a flee force away from the
+  falcon that falls off with distance; a flash-expansion impulse when the falcon
+  is inside 8 m and faster than 20 m/s; and the zigzag manoeuvre (forced roll
+  ±50° over 0.6 s, overriding banking), started by alarmed birds and copied by
+  non-alarmed birds when at least `k` neighbours started one within `Δu`, with a
+  1.5 s cooldown.
+- The falcon is drawn a little larger and darker than a starling.
+
+### Validation
+
+- **Agitation wave** (`--agitation`, `tests/m4.rs`): with the copying rule
+  seeded on a patch, the wave propagates and the arrival times are a clean front
+  — high R² (0.77–0.97). The threshold weakens the wave as expected: `k = 1`
+  reaches the whole flock, `k = 2` a few percent, `k ≥ 3` dies out in this dense
+  flock.
+- **Recorded session** (`--analyze 120 --birds 2000 --seed 42 --falcon`): the
+  falcon attacks at roughly t = 35 s, 73 s and 98 s. Alarmed fraction peaks at
+  66–76 % (blackening), mean |roll| rises to 0.9–1.1 rad (the zigzag wave), and
+  the flock spread grows by ~30 % (flash expansion). Large splits are not
+  required. Seed 42, times 35 s / 73 s / 98 s.
+
+### Gap, reported not faked
+
+The agitation **wave speed is 50–85 m/s, above the 3–25 m/s** PLAN.md cites from
+Hemelrijk et al. 2015. The trend with `k` is right (higher threshold → slower,
+weaker wave), but the absolute speed is too high and `k ≥ 3` does not propagate.
+The likely cause is the flock density (NND ≈ 0.8 m, interaction radius ≈ 1.5 m)
+combined with staggered decisions (each bird reacts every `Δu`, but at different
+phases), so the front can advance several neighbour-hops per reaction time. The
+`k = 1` speed of ~85 m/s is close to one interaction radius per `Δt`; hitting the
+literature range would need a sparser flock or a longer effective reaction time,
+which would change the M1 density. No rule was added to slow the wave by hand.
+
+### Key bindings added
+
+`f` releases the falcon; moving the mouse makes you the falcon (mouse mode sets
+the falcon's target to the point under the cursor).

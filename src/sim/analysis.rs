@@ -42,13 +42,17 @@ pub struct Stats {
     pub spread: f32,
     /// Mean `|z - z0|` [m].
     pub mean_dz: f32,
+    /// Fraction of birds alarmed by the falcon.
+    pub alarmed_fraction: f32,
+    /// Mean absolute bank angle [rad].
+    pub mean_roll: f32,
 }
 
 impl Stats {
     /// A one-line human-readable summary.
     pub fn line(&self) -> String {
         format!(
-            "birds={:5} |N|={:4.2} R={:5.2}m cluster={:5.1}% NND={:4.2}m spread={:5.1}m Rh={:5.1}m dz={:4.1}m I2/I1={:4.2} I3/I1={:4.2} flat={:4.2} nn_ab={:4.2} v={:4.1}m/s",
+            "birds={:5} |N|={:4.2} R={:5.2}m cluster={:5.1}% NND={:4.2}m spread={:5.1}m Rh={:5.1}m dz={:4.1}m I2/I1={:4.2} I3/I1={:4.2} flat={:4.2} nn_ab={:4.2} v={:4.1}m/s alarm={:4.1}% roll={:4.2}",
             self.birds,
             self.mean_neighbours,
             self.mean_radius,
@@ -62,6 +66,8 @@ impl Stats {
             self.flatness,
             self.nn_aligned_fraction,
             self.mean_speed,
+            self.alarmed_fraction * 100.0,
+            self.mean_roll,
         )
     }
 }
@@ -82,6 +88,12 @@ pub fn compute(world: &World) -> Stats {
     let centroid = pos.iter().copied().sum::<Vec3>() / n as f32;
     let spread = mean(pos.iter().map(|p| (*p - centroid).length()));
     let mean_dz = mean(pos.iter().map(|p| (p.z - world.z0).abs()));
+    let alarmed_fraction = if n > 0 {
+        world.escape.iter().filter(|e| e.alarmed).count() as f32 / n as f32
+    } else {
+        0.0
+    };
+    let mean_roll = mean(world.roll.iter().map(|r| r.abs()));
     let max_radius_h = pos
         .iter()
         .map(|p| (p.x * p.x + p.y * p.y).sqrt())
@@ -139,6 +151,8 @@ pub fn compute(world: &World) -> Stats {
         mean_radius,
         spread,
         mean_dz,
+        alarmed_fraction,
+        mean_roll,
     }
 }
 

@@ -4,6 +4,8 @@
 //! integration steps. It knows nothing about the terminal.
 
 pub mod analysis;
+pub mod escape;
+pub mod falcon;
 pub mod flight;
 pub mod neighbours;
 pub mod params;
@@ -14,6 +16,8 @@ use glam::Vec3;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
+use escape::EscapeState;
+use falcon::Falcon;
 use neighbours::Grid;
 use params::*;
 
@@ -39,6 +43,12 @@ pub struct World {
     pub neighbour_count: Vec<u32>,
     /// Centrality `C_i` from each bird's last decision.
     pub centrality: Vec<f32>,
+    /// Per-bird escape state (alarm, zigzag, flash expansion).
+    pub escape: Vec<EscapeState>,
+    /// The falcon, if one is hunting.
+    pub falcon: Option<Falcon>,
+    /// Number of neighbours whose zigzag starts a copy (1–7).
+    pub zigzag_k: u32,
     /// Per-bird random streams, so decisions are order-independent.
     rngs: Vec<ChaCha8Rng>,
     grid: Grid,
@@ -86,9 +96,19 @@ impl World {
             next_decision,
             neighbour_count: vec![0; n],
             centrality: vec![0.0; n],
+            escape: vec![EscapeState::default(); n],
+            falcon: None,
+            zigzag_k: ZIGZAG_K,
             rngs,
             grid,
             seed,
+        }
+    }
+
+    /// Adds an autonomous falcon to the world.
+    pub fn spawn_falcon(&mut self) {
+        if self.falcon.is_none() {
+            self.falcon = Some(Falcon::new(self.seed, self.z0));
         }
     }
 
@@ -105,9 +125,55 @@ impl World {
     /// Advances the world by one integration step.
     pub fn step(&mut self, dt: f32) {
         self.time += dt;
-        self.grid.rebuild(&self.position);
         let time = self.time;
         let z0 = self.z0;
+
+        // The falcon hunts.
+        if !self.is_empty() {
+            let n = self.len() as f32;
+            let centroid = self.position.iter().copied().sum::<Vec3>() / n;
+            let extent = self
+                .position
+                .iter()
+                .map(|p| (*p - centroid).length())
+                .fold(1.0f32, f32::max);
+            if let Some(falcon) = &mut self.falcon {
+                falcon.update(dt, centroid, extent, time);
+            }
+        }
+
+        // Alarm, the alarm-triggered manoeuvre, and flash expansion.
+        match &self.falcon {
+            Some(falcon) => {
+                let fpos = falcon.position;
+                let fspeed = falcon.speed();
+                for i in 0..self.len() {
+                    let dist = (self.position[i] - fpos).length();
+                    let e = &mut self.escape[i];
+                    if dist < R_THREAT {
+                        if !e.zigzag_active && time >= e.cooldown_until {
+                            e.zigzag_start = time;
+                            e.zigzag_active = true;
+                            e.zigzag_sign = if i % 2 == 0 { 1.0 } else { -1.0 };
+                        }
+                        e.alarmed = true;
+                        if dist < R_FLASH && fspeed > V_FLASH {
+                            e.flash_until = time + FLASH_DURATION;
+                        }
+                    } else {
+                        e.alarmed = false;
+                    }
+                }
+            }
+            None => {
+                for e in &mut self.escape {
+                    e.alarmed = false;
+                }
+            }
+        }
+
+        self.grid.rebuild(&self.position);
+        let k = self.zigzag_k;
 
         // Decisions for every bird whose reaction is due.
         {
@@ -121,17 +187,44 @@ impl World {
                 centrality,
                 rngs,
                 grid,
+                escape,
+                falcon,
                 ..
             } = self;
             for i in 0..position.len() {
                 if time >= next_decision[i] {
-                    let d = social::decide(i, position, velocity, radii, grid, &mut rngs[i], z0);
+                    let d = social::decide(
+                        i,
+                        position,
+                        velocity,
+                        radii,
+                        grid,
+                        &mut rngs[i],
+                        z0,
+                        falcon.as_ref(),
+                        escape,
+                        time,
+                        k,
+                    );
                     steering[i] = d.force;
                     radii[i] = d.radius;
                     neighbour_count[i] = d.neighbours;
                     centrality[i] = d.centrality;
+                    if let Some(sign) = d.start_zigzag {
+                        escape[i].zigzag_start = time;
+                        escape[i].zigzag_active = true;
+                        escape[i].zigzag_sign = sign;
+                    }
                     next_decision[i] += DU;
                 }
+            }
+        }
+
+        // End finished zigzags and start their cooldown.
+        for e in &mut self.escape {
+            if e.zigzag_active && time - e.zigzag_start >= ZIGZAG_DURATION {
+                e.zigzag_active = false;
+                e.cooldown_until = time + ZIGZAG_COOLDOWN;
             }
         }
 
@@ -142,14 +235,17 @@ impl World {
                 velocity,
                 roll,
                 steering,
+                escape,
                 ..
             } = self;
             for i in 0..position.len() {
+                let forced = escape::zigzag_roll(&escape[i], time);
                 flight::step_bird(
                     &mut position[i],
                     &mut velocity[i],
                     &mut roll[i],
                     steering[i],
+                    forced,
                     dt,
                 );
             }

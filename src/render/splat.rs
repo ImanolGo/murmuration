@@ -11,6 +11,9 @@ use super::camera::Camera;
 /// Starling wingspan [m], used as the apparent disc size.
 const WINGSPAN: f32 = 0.4;
 
+/// Falcon wingspan [m].
+const FALCON_WINGSPAN: f32 = 1.0;
+
 /// Overall darkness scale. Tuned so a settled flock reads as dense smoke.
 const K_DARK: f32 = 25.0;
 
@@ -43,6 +46,20 @@ pub fn splat(depth: &mut [f32], pixel_w: usize, pixel_h: usize, world: &World, c
             bilinear(depth, pixel_w, pixel_h, sx, sy, a * rho * rho);
         } else {
             gaussian(depth, pixel_w, pixel_h, sx, sy, a, (rho * 0.5).min(8.0));
+        }
+    }
+
+    // The falcon, drawn a little larger and darker than a starling.
+    if let Some(falcon) = &world.falcon
+        && let Some((sx, sy, dist)) = camera.project(falcon.position, pixel_w, pixel_h)
+    {
+        let atmosphere = (1.0 - dist / ATMOSPHERE).clamp(0.25, 1.0);
+        let a = K_DARK * 1.6 * atmosphere;
+        let rho = FALCON_WINGSPAN * focal / dist;
+        if rho < 1.0 {
+            bilinear(depth, pixel_w, pixel_h, sx, sy, a * rho * rho);
+        } else {
+            gaussian(depth, pixel_w, pixel_h, sx, sy, a, (rho * 0.5).min(12.0));
         }
     }
 }
