@@ -41,7 +41,7 @@ A terminal with true colour and a font with braille characters gives the best re
 ```sh
 murmuration                 # dusk, the flock gathers (a new evening each run)
 murmuration --screensaver   # any key or mouse movement exits
-murmuration --birds 5000    # a bigger flock
+murmuration --birds 5000    # set the flock size (default: from the terminal)
 murmuration --falcon        # a falcon hunts on its own
 murmuration --seed 7        # the same evening every time
 murmuration --no-arc        # hold the display phase forever

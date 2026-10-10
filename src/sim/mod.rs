@@ -16,6 +16,7 @@ pub mod turns;
 use glam::Vec3;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use rayon::prelude::*;
 
 use arc::Arc;
 use escape::EscapeState;
@@ -317,7 +318,8 @@ impl World {
         self.grid.rebuild(&self.position);
         let k = self.zigzag_k;
 
-        // Decisions for every bird whose reaction is due.
+        // Decisions for every bird whose reaction is due. They read a snapshot
+        // of the flock, so they run in parallel; the results are applied after.
         {
             let Self {
                 position,
@@ -333,32 +335,43 @@ impl World {
                 falcon,
                 ..
             } = self;
-            for i in 0..position.len() {
-                if time >= next_decision[i] {
-                    let d = social::decide(
-                        i,
-                        position,
-                        velocity,
-                        radii,
-                        grid,
-                        &mut rngs[i],
-                        z0,
-                        falcon.as_ref(),
-                        escape,
-                        time,
-                        k,
-                    );
-                    steering[i] = d.force;
-                    radii[i] = d.radius;
-                    neighbour_count[i] = d.neighbours;
-                    centrality[i] = d.centrality;
-                    if let Some(sign) = d.start_zigzag {
-                        escape[i].zigzag_start = time;
-                        escape[i].zigzag_active = true;
-                        escape[i].zigzag_sign = sign;
+            let mut decisions: Vec<Option<social::Decision>> =
+                (0..position.len()).map(|_| None).collect();
+            decisions
+                .par_iter_mut()
+                .zip(rngs.par_iter_mut())
+                .enumerate()
+                .for_each(|(i, (slot, rng))| {
+                    if time >= next_decision[i] {
+                        *slot = Some(social::decide(
+                            i,
+                            position,
+                            velocity,
+                            radii,
+                            grid,
+                            rng,
+                            z0,
+                            falcon.as_ref(),
+                            escape,
+                            time,
+                            k,
+                        ));
                     }
-                    next_decision[i] += DU;
+                });
+            for (i, decision) in decisions.iter_mut().enumerate() {
+                let Some(d) = decision.take() else {
+                    continue;
+                };
+                steering[i] = d.force;
+                radii[i] = d.radius;
+                neighbour_count[i] = d.neighbours;
+                centrality[i] = d.centrality;
+                if let Some(sign) = d.start_zigzag {
+                    escape[i].zigzag_start = time;
+                    escape[i].zigzag_active = true;
+                    escape[i].zigzag_sign = sign;
                 }
+                next_decision[i] += DU;
             }
         }
 

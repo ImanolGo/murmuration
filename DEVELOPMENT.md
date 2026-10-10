@@ -42,8 +42,8 @@ per simulated second.
 | Nearest neighbours ahead/behind | < 0.10 | 0.055 |
 | Largest single-link cluster at 5 m | ≥ 95 % | min 96.7 % |
 
-Performance: 4000 birds simulate 20 s in 6.4 s on one core in release mode
-(~3× real time). 2000 birds run at ~7× real time.
+Performance: 4000 birds simulate 20 s in 5.7 s in release mode (~3.5× real
+time, decisions in parallel with rayon). 2000 birds run faster still.
 
 ### Deviations from PLAN.md, following the paper
 
@@ -169,8 +169,10 @@ grey. The numbers are recorded in the commit messages as the model is fixed.
   the flock projects as a long band rather than a compact blob. The camera (A5)
   frames the band's height to 60 % of the screen, which meets the coverage target
   but clips the ends.
-- **rayon.** Not used yet: decisions run single-threaded and are fast enough at
-  these flock sizes.
+- **rayon.** Decisions run in parallel with rayon: each reads a snapshot of the
+  flock and writes only its own outputs, so the result is still deterministic
+  for a seed (verified by `determinism_for_a_seed`). The default flock size is
+  chosen from the terminal area, 4000–8000 birds (review C6).
 
 ### Initial condition
 
@@ -227,7 +229,7 @@ time, eases the camera, and draws. It runs the display phase only (no arc yet).
   valid on the machine that made it (run `cargo test -- --ignored` locally to
   check it). CI instead runs `frame_renders_a_flock`, a portable check that the
   frame contains plenty of braille and a reed silhouette.
-- `tests/perf.rs` (ignored by default) measures **45–58 fps** for 4000 birds at
+- `tests/perf.rs` (ignored by default) measures **89–92 fps** for 4000 birds at
   both 80 × 24 and 200 × 60 in release mode, well above the 30 fps target.
 - `settled_flock_covers_the_screen` (2000 birds, seed 0, four minutes, 120 × 36)
   checks the framing: the flock covers 20 % of the cells, above the 15 % target.

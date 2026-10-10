@@ -55,9 +55,9 @@ struct Cli {
     /// Length of one evening, in minutes.
     #[arg(long, default_value_t = 15.0)]
     arc_minutes: f32,
-    /// Number of birds.
-    #[arg(long, default_value_t = 2000)]
-    birds: usize,
+    /// Number of birds [default: from the terminal size, 4000–8000].
+    #[arg(long)]
+    birds: Option<usize>,
     /// Random seed for the evening.
     #[arg(long)]
     seed: Option<u64>,
@@ -79,21 +79,23 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     // A fresh evening by default; pass --seed to repeat one.
     let seed = cli.seed.unwrap_or_else(rand::random);
+    // Headless runs keep a fixed default so measurements are reproducible.
+    let headless_birds = cli.birds.unwrap_or(2000);
 
     if let Some(seconds) = cli.analyze {
-        analyze(seconds, cli.birds, seed, cli.falcon);
+        analyze(seconds, headless_birds, seed, cli.falcon);
         return Ok(());
     }
     if cli.turns {
-        turns(cli.birds, seed, &cli);
+        turns(headless_birds, seed, &cli);
         return Ok(());
     }
     if cli.agitation {
-        agitation(cli.birds, seed, cli.zigzag_k);
+        agitation(headless_birds, seed, cli.zigzag_k);
         return Ok(());
     }
     if cli.probe {
-        probe(cli.birds, seed);
+        probe(headless_birds, seed);
         return Ok(());
     }
 
@@ -326,8 +328,19 @@ fn probe_coverage(world: &World, w: u16, h: u16) -> f32 {
     lit as f32 / (w as f32 * h as f32)
 }
 
+/// Default flock size for a terminal of `w`×`h` cells: roughly 4000–8000, so a
+/// bigger screen gets more birds (review C6).
+fn default_birds(w: u16, h: u16) -> usize {
+    let cells = (w as usize).saturating_mul(h as usize).max(1);
+    (cells * 2).clamp(4000, 8000)
+}
+
 fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<()> {
-    let mut world = World::new(cli.birds, seed);
+    let size = terminal.size()?;
+    let birds = cli
+        .birds
+        .unwrap_or_else(|| default_birds(size.width, size.height));
+    let mut world = World::new(birds, seed);
     world.zigzag_k = cli.zigzag_k;
     if !cli.no_arc {
         world.enable_arc(cli.arc_minutes);
@@ -338,7 +351,6 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
     let mut ui_rng = ChaCha8Rng::seed_from_u64(seed ^ 0x5A_17);
     let mut camera = Camera::new();
     let mut renderer = Renderer::new(cli.colors.resolve());
-    let size = terminal.size()?;
     let mut aspect = (size.width as f32 * 2.0) / (size.height as f32 * 4.0);
     camera.update(&world, 1.0, aspect);
 
