@@ -87,7 +87,8 @@ behaviour the same paper reports, so a correction was made and is documented.
   The boundary force is radial for a tangentially moving bird, so it applies no
   torque and cannot remove the angular momentum the initial condition gives the
   flock. Making it cross needs a non-central (dissipative) roost force or a
-  different initial condition; see the open issue in the M1 notes.
+  different initial condition; both were investigated and are recorded as a
+  known gap in the M1 notes.
 - **Banking (Eq. 19–21).** The paper's roll update,
   `β ← β + atan(w_βin·a_lat·Δt) − atan(w_βout·sin β·Δt)`, is applied once per
   5 ms integration step. With `w_βin = 10`, a 1 N lateral force adds ~0.56 rad in
@@ -140,12 +141,17 @@ grey. The numbers are recorded in the commit messages as the model is fixed.
 - **Roost crossing.** The inward roost force no longer pins the flock to the
   boundary, but the flock still orbits inside `R_roost` instead of passing back
   and forth over the centre. `--probe` (2000 birds, seed 0, four minutes): mean
-  signed tangential velocity 10.3 m/s and the centroid never comes within 60 m
-  of the centre. The initial condition launches the whole flock with one heading
-  at a bearing that gives it angular momentum, and the boundary force is radial
-  for a tangentially moving bird, so it applies no torque and does not remove
-  that angular momentum. Candidate fixes, not yet applied: launch the flock
-  heading toward the centre, or make the roost force non-central (dissipative).
+  signed tangential velocity 10.2 m/s and the centroid never comes within 60 m
+  of the centre. The boundary force is radial for a tangentially moving bird, so
+  it applies no torque and cannot remove the angular momentum the initial
+  condition gives the flock. Starting the flock with little angular momentum
+  (heading inward, spread with random headings, or at the centre) was tried and
+  rejected: with no continuous turning the flock stretches into a filament and
+  splits, so it fails M1's "≥ 95% in one cluster" test (best case: a low-L start
+  plus a central restoring component crossed the roost and kept the aspect
+  ratios within the hard limits, but still fragmented, 50% in the largest
+  cluster). Accepted as a gap for now; the model mills over the roost as the
+  paper's own does.
 - **Elongation.** The flock is frequently more elongated (inertia ratio `I2/I1`
   of several tens) than the paper's 1.9–3.6. The oblong-school instability is
   only partly destroyed by the turns in this implementation. This is a
