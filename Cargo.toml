@@ -15,6 +15,12 @@ categories = ["command-line-utilities", "simulation", "graphics"]
 # but out of the published package.
 exclude = ["docs/", ".github/"]
 
+[package.metadata.wix]
+upgrade-guid = "065A504B-12C6-4EEE-9DA9-B99FDBD65258"
+path-guid = "F8867722-F694-441C-B8C0-D6772B3D2D48"
+license = false
+eula = false
+
 [dependencies]
 ratatui = "0.30"
 crossterm = "0.29"
