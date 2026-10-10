@@ -16,6 +16,7 @@ itself internally inconsistent, the deviation and the reason are recorded here.
 | M3 Turns | measurement done; linear wave not emerging (see below) |
 | M4 Falcon | mechanics done; agitation wave propagates but is faster than the literature range (see below) |
 | M5 The evening | done |
+| M6 Polish & release | done (v0.1.0) |
 
 Build and checks (must be green before every commit):
 
@@ -271,3 +272,35 @@ ANSI truecolour text (`murmuration-frame-<t>s.ansi`).
   writes the ANSI frame, and `q` restores the terminal.
 
 No plan-vs-paper conflicts in M5.
+
+## M6 — polish and release (v0.1.0)
+
+- **Colour.** `--colors auto|truecolor|ansi256|none`; auto honours `NO_COLOR`
+  and `COLORTERM` (truecolor/24bit), otherwise the nearest of the 256 xterm
+  colours, otherwise plain braille on the terminal default.
+- **Signals.** `SIGINT`/`SIGTERM`/`SIGHUP` set a flag through `signal-hook`, and
+  the loop returns normally so the terminal is restored.
+- **`--screensaver`.** Any key press or mouse movement exits.
+- **Save.** `s` writes the current frame as ANSI truecolour text
+  (`murmuration-frame-<t>s.ansi`, gitignored).
+
+### `--analyze` for 10 minutes, 2000 birds, seed 42
+
+Averaged over t = 60–600 s: mean `|N|` **6.55**, mean NND **0.83 m**, mean
+flatness **1.000**, nearest-neighbour ahead/behind **0.065**, mean speed
+**10.5 m/s**. The largest single-link cluster stayed above 95 % for the first
+two minutes but fell as low as **80 %** at times over the full ten; the flock
+grows more elongated over long runs (mean `I2/I1` ~ 1.3e3, `I3/I1` ~ 5e3). These
+are the same two weak points flagged in M1/M3: occasional splitting and excess
+elongation. The per-second statistics are stable rather than drifting, so a long
+evening does not diverge.
+
+### GIF
+
+`docs/murmuration.tape` records `docs/murmuration.gif` with vhs: fixed seed 7,
+`--no-arc`, a falcon session, 960×560 at 12 fps. Run `vhs docs/murmuration.tape`
+to regenerate (needs `vhs`).
+
+### Release
+
+`README.md` updated, `CHANGELOG.md` added, tagged `v0.1.0`.

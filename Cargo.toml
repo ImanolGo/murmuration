@@ -1,6 +1,6 @@
 [package]
 name = "murmuration"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Starlings at dusk, in your terminal."
@@ -17,6 +17,7 @@ rand = "0.9"
 rand_chacha = "0.9"
 glam = "0.34"
 rayon = "1"
+signal-hook = "0.3"
 
 [dev-dependencies]
 insta = "1"

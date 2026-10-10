@@ -6,7 +6,9 @@ murmuration fills your terminal with a few thousand starlings wheeling over a re
 
 > **Status:** early days. The plan lives in [PLAN.md](PLAN.md); what's built, how it was validated, and where it departs from the plan and the papers is recorded in [DEVELOPMENT.md](DEVELOPMENT.md).
 
-<!-- A GIF goes here once there is something to record. -->
+A starling murmuration, recorded from the simulation (`docs/murmuration.tape`):
+
+![murmuration](docs/murmuration.gif)
 
 ## Why
 
@@ -42,7 +44,13 @@ murmuration --screensaver   # any key or mouse movement exits
 murmuration --birds 5000    # a bigger flock
 murmuration --falcon        # a falcon hunts on its own
 murmuration --seed 7        # the same evening every time
+murmuration --no-arc        # hold the display phase forever
+murmuration --colors none   # plain braille on the terminal default
 ```
+
+An evening lasts `--arc-minutes` (default 15) and then loops. For headless
+runs, `--analyze SECONDS` prints flock statistics, `--turns` reports the
+turning-wave fit, and `--agitation` reports the zigzag-wave fit.
 
 Keys while it's running:
 
@@ -54,7 +62,7 @@ Keys while it's running:
 | `Space` | Pause |
 | `+` / `-` | More or fewer birds |
 | `c` | Move the camera to a new spot on the ground |
-| `s` | Save the current frame as a text file |
+| `s` | Save the current frame as ANSI text |
 
 ## The science, briefly
 

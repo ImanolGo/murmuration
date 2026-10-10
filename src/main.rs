@@ -32,6 +32,12 @@ struct Cli {
     /// A falcon hunts from the start.
     #[arg(long)]
     falcon: bool,
+    /// Colour handling.
+    #[arg(long, value_enum, default_value_t = murmuration::render::colour::Mode::Auto)]
+    colors: murmuration::render::colour::Mode,
+    /// Exit on any key press or mouse movement.
+    #[arg(long)]
+    screensaver: bool,
     /// Hold the display phase (no evening arc).
     #[arg(long)]
     no_arc: bool,
@@ -155,8 +161,19 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
     }
     let mut ui_rng = ChaCha8Rng::seed_from_u64(seed ^ 0x5A_17);
     let mut camera = Camera::new();
-    let mut renderer = Renderer::new();
+    let mut renderer = Renderer::new(cli.colors.resolve());
     camera.update(&world, 1.0);
+
+    // Terminate cleanly on SIGINT / SIGTERM / SIGHUP.
+    let terminate = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    #[cfg(unix)]
+    for signal in [
+        signal_hook::consts::SIGINT,
+        signal_hook::consts::SIGTERM,
+        signal_hook::consts::SIGHUP,
+    ] {
+        signal_hook::flag::register(signal, std::sync::Arc::clone(&terminate))?;
+    }
 
     let mut paused = false;
     let mut save_requested = false;
@@ -164,6 +181,9 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
     let mut last = Instant::now();
 
     loop {
+        if terminate.load(std::sync::atomic::Ordering::Relaxed) {
+            return Ok(());
+        }
         let now = Instant::now();
         let dt = (now - last).as_secs_f32().min(0.25);
         last = now;
@@ -190,7 +210,11 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
         }
 
         if event::poll(Duration::from_millis(16))? {
-            match event::read()? {
+            let event = event::read()?;
+            if cli.screensaver && matches!(event, Event::Key(_) | Event::Mouse(_)) {
+                return Ok(());
+            }
+            match event {
                 Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                     KeyCode::Char('f') => world.spawn_falcon(),

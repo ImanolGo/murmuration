@@ -1,5 +1,6 @@
 //! A fixed-seed frame, snapshotted so the look can be tracked over time.
 
+use murmuration::render::colour::Depth;
 use murmuration::render::{Camera, Renderer};
 use murmuration::sim::World;
 use murmuration::sim::params::DT;
@@ -33,10 +34,27 @@ fn fixed_seed_frame() {
     }
 
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
-    let mut renderer = Renderer::new();
+    let mut renderer = Renderer::new(Depth::TrueColor);
     terminal
         .draw(|frame| renderer.draw(frame, &world, &camera))
         .unwrap();
 
     insta::assert_snapshot!(buffer_to_string(terminal.backend().buffer()));
+}
+
+#[test]
+fn all_colour_depths_render() {
+    for depth in [Depth::TrueColor, Depth::Ansi256, Depth::Mono] {
+        let mut world = World::new(200, 3);
+        for _ in 0..200 {
+            world.step(murmuration::sim::params::DT);
+        }
+        let mut camera = Camera::new();
+        camera.update(&world, 1.0);
+        let mut terminal = Terminal::new(TestBackend::new(40, 12)).unwrap();
+        let mut renderer = Renderer::new(depth);
+        terminal
+            .draw(|frame| renderer.draw(frame, &world, &camera))
+            .unwrap();
+    }
 }
