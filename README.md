@@ -39,7 +39,7 @@ A terminal with true colour and a font with braille characters gives the best re
 ## Usage
 
 ```sh
-murmuration                 # dusk, the flock gathers
+murmuration                 # dusk, the flock gathers (a new evening each run)
 murmuration --screensaver   # any key or mouse movement exits
 murmuration --birds 5000    # a bigger flock
 murmuration --falcon        # a falcon hunts on its own

@@ -77,7 +77,8 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let seed = cli.seed.unwrap_or(0);
+    // A fresh evening by default; pass --seed to repeat one.
+    let seed = cli.seed.unwrap_or_else(rand::random);
 
     if let Some(seconds) = cli.analyze {
         analyze(seconds, cli.birds, seed, cli.falcon);
@@ -383,7 +384,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
         let completed = terminal.draw(|frame| renderer.draw(frame, &world, &camera))?;
         if save_requested {
             save_requested = false;
-            let path = format!("murmuration-frame-{:.1}s.ansi", world.time);
+            let path = format!("murmuration-frame-seed{seed}-{:.1}s.ansi", world.time);
             std::fs::write(&path, frame_to_ansi(completed.buffer))?;
             println!("saved {path}");
         }

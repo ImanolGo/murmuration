@@ -342,7 +342,9 @@ silhouette with time. `--no-arc` holds the display phase at dusk.
 
 Remaining keys: `Space` pauses, `+`/`-` add/remove birds (and change the arc's
 target), `c` moves the camera to a new bearing, `s` saves the current frame as
-ANSI truecolour text (`murmuration-frame-<t>s.ansi`).
+ANSI truecolour text (`murmuration-frame-seed<seed>-<t>s.ansi`). Without
+`--seed` the seed is drawn at random and printed by `--analyze`, so a nice
+evening can be reproduced from the saved file name.
 
 ### Validation
 
@@ -368,7 +370,10 @@ No plan-vs-paper conflicts in M5.
   Moving the mouse spawns a mouse-driven falcon on the first movement.
   `--no-mouse` disables capture.
 - **Save.** `s` writes the current frame as ANSI truecolour text
-  (`murmuration-frame-<t>s.ansi`, gitignored).
+  (`murmuration-frame-seed<seed>-<t>s.ansi`, gitignored).
+- **Seed (review B5).** Without `--seed` a random seed is drawn for each run, so
+  every evening differs; `--analyze` prints it and it is in the saved file name,
+  so a good one can be replayed.
 
 ### `--analyze` for 10 minutes, 2000 birds, seed 42
 
