@@ -13,6 +13,7 @@ itself internally inconsistent, the deviation and the reason are recorded here.
 | M0 Skeleton | done |
 | M1 Headless flock | done |
 | M2 First light | done |
+| M3 Turns | measurement done; linear wave not emerging (see below) |
 
 Build and checks (must be green before every commit):
 
@@ -149,3 +150,47 @@ time, eases the camera, and draws. It runs the display phase only (no arc yet).
   density without scripting any shape — the form still comes from the birds.
 - No plan-vs-paper conflicts arose in M2; the constants are presentation, not
   model, parameters.
+
+## M3 — turns (partial)
+
+`sim/turns.rs` implements the forced-turn experiment: after the flock settles,
+the headings of the birds on one side are rotated gradually (0.5 s) by a set
+angle, and for every bird we record the first time its heading changes *relative
+to the flock's mean heading change* by more than a threshold — subtracting the
+mean removes the whole-flock body turn and leaves only the front. The distance
+from the disturbance is fitted against that arrival time (`--turns`
+reports the speed, R², polarisation, shape ratio and connectivity).
+
+The flock does turn as a coherent body: it stays in one piece, polarisation
+stays ≈ 0.96, and its heading changes together rather than fragmenting.
+
+However, **the fitted turning wave is not close to linear**, so the M3
+acceptance bar is not met. Best result over a banking sweep (and the paper's
+`w_βin = 10` is already the best of the sweep):
+
+| config | speed | R² | birds turned | shape ratio |
+| --- | --- | --- | --- | --- |
+| side 100, angle 0.8, 2 s, threshold 0.3 | ~38 m/s | 0.47 | 13 % | 3.1 |
+| side 100, angle 0.8, 2 s, threshold 0.1 | ~800 m/s | 0.00 | 90 % | 3.1 |
+| side 300, angle 0.8, 3 s, threshold 0.3 | ~42 m/s | 0.25 | 53 % | 6.6 |
+| banking `w_βin` 1 … 20 | — | ≤ 0.47 | — | 1.5–3.6 |
+
+Lower thresholds are crossed by the flock's natural heading spread (~14° rms),
+not the wave; higher thresholds catch only the near edge, so the front is
+truncated before it crosses the flock. The turn also does not preserve the
+flock's shape: `I2/I1` changes by a factor of ~3–7 over the manoeuvre.
+
+**Why, best current explanation.** The alignment rule (Eq. 8) is symmetric: the
+perturbed birds are pulled back toward their unperturbed neighbours as strongly
+as those neighbours are pulled forward, so a local turn is damped instead of
+sweeping. The clean, linear turning waves in the literature (Attanasi et al.
+2014, Cavagna et al. 2015) come from *behavioural inertia* — a heading that
+keeps changing once started — which this model does not have. PLAN.md lists the
+inertial-spin model as a **separate experiment for after 0.1**
+(`--turning inertial`), which is consistent with the base rules not producing
+the wave on their own.
+
+This is reported rather than faked: no extra rule was added to manufacture a
+wave, and the shape is not forced. The next step, if the wave is required for
+0.1, is to build the deferred inertial variant and compare, rather than twist
+the base model.
