@@ -186,10 +186,22 @@ impl World {
         } else {
             self.position.iter().copied().sum::<Vec3>() / self.len() as f32
         };
+        // New birds join the flock's heading with a little noise, instead of
+        // flying off in a random direction (including straight up or down).
+        let mean_dir = if self.is_empty() {
+            Vec3::X
+        } else {
+            flight::forward(self.velocity.iter().copied().sum::<Vec3>())
+        };
         for _ in 0..count {
             let pos = centre + social::random_unit(rng) * rng.random_range(0.0..30.0);
-            let vel = social::random_unit(rng) * V0;
-            self.push_bird(pos, vel, rng);
+            let dir = (mean_dir + social::random_unit(rng) * 0.1).normalize_or_zero();
+            let dir = if dir.length_squared() < 0.5 {
+                mean_dir
+            } else {
+                dir
+            };
+            self.push_bird(pos, dir * V0, rng);
         }
     }
 
@@ -413,5 +425,24 @@ mod tests {
         let mean_n = w.neighbour_count.iter().map(|&c| c as f32).sum::<f32>() / w.len() as f32;
         assert!(mean_r < 20.0, "mean R blew up: {mean_r}");
         assert!(mean_n < 40.0, "mean |N| blew up: {mean_n}");
+    }
+
+    #[test]
+    fn added_birds_follow_the_flock() {
+        let mut w = World::new(200, 7);
+        for _ in 0..200 {
+            w.step(DT);
+        }
+        let before = w.len();
+        let mean_dir = flight::forward(w.velocity.iter().copied().sum::<Vec3>());
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
+        w.add_birds(50, &mut rng);
+        for i in before..w.len() {
+            let dir = flight::forward(w.velocity[i]);
+            assert!(
+                dir.dot(mean_dir) > 0.9,
+                "added bird {i} heads {dir} while the flock heads {mean_dir}"
+            );
+        }
     }
 }

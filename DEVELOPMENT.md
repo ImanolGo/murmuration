@@ -344,7 +344,9 @@ Remaining keys: `Space` pauses, `+`/`-` add/remove birds (and change the arc's
 target), `c` moves the camera to a new bearing, `s` saves the current frame as
 ANSI truecolour text (`murmuration-frame-seed<seed>-<t>s.ansi`). Without
 `--seed` the seed is drawn at random and printed by `--analyze`, so a nice
-evening can be reproduced from the saved file name.
+evening can be reproduced from the saved file name. New birds added with `+`
+take the flock's mean heading plus a little noise, instead of a random
+direction (review B7).
 
 ### Validation
 
