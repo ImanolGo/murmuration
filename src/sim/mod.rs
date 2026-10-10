@@ -91,11 +91,7 @@ impl World {
             next_decision.push(rng.random_range(0.0..DU));
             rngs.push(ChaCha8Rng::seed_from_u64(mix(seed, i as u64)));
         }
-        let grid = Grid::new(
-            GRID_CELL,
-            Vec3::new(-R_ROOST - 60.0, -R_ROOST - 60.0, -40.0),
-            Vec3::new(R_ROOST + 60.0, R_ROOST + 60.0, z0 + 200.0),
-        );
+        let grid = Grid::new(GRID_CELL);
         Self {
             time: 0.0,
             z0,

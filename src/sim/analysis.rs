@@ -93,7 +93,7 @@ pub fn compute(world: &World) -> Stats {
     if n == 0 {
         return Stats::default();
     }
-    let mut grid = Grid::around(GRID_CELL, pos, 20.0);
+    let mut grid = Grid::new(GRID_CELL);
     grid.rebuild(pos);
 
     let mean_neighbours = mean(world.neighbour_count.iter().map(|&c| c as f32));
@@ -376,7 +376,7 @@ mod tests {
         let pos: Vec<Vec3> = (0..50)
             .map(|i| Vec3::new(i as f32 * 2.0, 0.0, 0.0))
             .collect();
-        let mut grid = Grid::around(GRID_CELL, &pos, 20.0);
+        let mut grid = Grid::new(GRID_CELL);
         grid.rebuild(&pos);
         assert!((largest_cluster(&pos, &grid, 5.0) - 1.0).abs() < 1e-6);
     }

@@ -116,9 +116,15 @@ behaviour the same paper reports, so a correction was made and is documented.
 
 ### Findings and fixes made along the way
 
-- **Spatial grid.** A bug where birds leaving a fixed grid box corrupted
-  neighbour queries was found and fixed by covering the roost plus margin. The
-  grid is now stress-tested against brute force (`neighbours::grid_matches_bruteforce`).
+- **Spatial grid.** The grid was a dense array covering a fixed ±210 m box, so
+  birds spawned outside it (the evening arc spawns groups 250–350 m out) found
+  no neighbours and their interaction radius climbed to `R_max`. It is now an
+  unbounded spatial hash: integer cell coordinates are hashed into a 2¹⁶-bucket
+  table, the exact distance check is kept, and each bucket entry is matched to
+  its own cell so a bird is never counted twice when two query cells collide.
+  It is stress-tested against brute force
+  (`neighbours::grid_matches_bruteforce`) and by a 300 m group that finds six
+  neighbours in the first second (`b1::distant_group_finds_neighbours`).
 - **Jacobi eigen-solver.** The 3×3 symmetric solver used for the inertia
   ellipsoid picked the wrong rotation branch for near-degenerate matrices,
   which made flatness read spuriously as 0. The rotation angle is now reduced to

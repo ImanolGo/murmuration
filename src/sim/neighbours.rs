@@ -1,97 +1,71 @@
-//! A uniform spatial hash grid for neighbour queries.
+//! A spatial hash grid for neighbour queries.
 //!
-//! Birds are bucketed into cubic cells of a fixed size; a query walks only the
-//! cells its radius can touch. Rebuilding is O(N) and clearing touches only the
-//! cells that were occupied.
+//! Integer cell coordinates are hashed into a fixed-size table, so the grid is
+//! unbounded: birds spawned far outside the roost still find each other. Each
+//! bucket holds a linked list of bird indices; a query walks the buckets for the
+//! cells its radius can touch and keeps the exact distance check.
 
 use glam::Vec3;
 
-use super::params::GRID_CELL;
+/// Number of hash buckets (a power of two). Must exceed the number of occupied
+/// cells by a good margin so collisions stay rare.
+const BUCKETS: usize = 1 << 16;
 
-/// A uniform grid of cell size `cell`, covering `[min, max]`.
+/// An unbounded uniform spatial hash with cells of size `cell`.
 pub struct Grid {
-    origin: Vec3,
     inv_cell: f32,
-    dims: [i32; 3],
-    /// First bird index per cell, or −1. Length `dims.x·dims.y·dims.z`.
+    /// First bird index per bucket, or −1.
     head: Vec<i32>,
-    /// Next bird in the same cell, or −1. Length N.
+    /// Next bird in the same bucket, or −1. Length N.
     next: Vec<i32>,
-    /// Cells occupied in the current build (so rebuild clears only those).
+    /// Cell of each bird from the current build. Length N.
+    cells: Vec<[i32; 3]>,
+    /// Buckets occupied in the current build (so rebuild clears only those).
     touched: Vec<u32>,
 }
 
 impl Grid {
-    /// Builds an empty grid of the given cell size covering `[min, max]`.
-    pub fn new(cell: f32, min: Vec3, max: Vec3) -> Self {
-        let dims = [
-            (((max.x - min.x) / cell).ceil() as i32).max(1),
-            (((max.y - min.y) / cell).ceil() as i32).max(1),
-            (((max.z - min.z) / cell).ceil() as i32).max(1),
-        ];
-        let cells = (dims[0] as usize) * (dims[1] as usize) * (dims[2] as usize);
+    /// Builds an empty grid with the given cell size.
+    pub fn new(cell: f32) -> Self {
         Self {
-            origin: min,
             inv_cell: 1.0 / cell,
-            dims,
-            head: vec![-1; cells],
+            head: vec![-1; BUCKETS],
             next: Vec::new(),
+            cells: Vec::new(),
             touched: Vec::new(),
         }
     }
 
-    /// A grid covering `positions` with a margin of `margin` metres.
-    pub fn around(cell: f32, positions: &[Vec3], margin: f32) -> Self {
-        let mut min = Vec3::splat(f32::MAX);
-        let mut max = Vec3::splat(f32::MIN);
-        for &p in positions {
-            min = min.min(p);
-            max = max.max(p);
-        }
-        if positions.is_empty() {
-            min = Vec3::ZERO;
-            max = Vec3::splat(cell);
-        }
-        Self::new(cell, min - Vec3::splat(margin), max + Vec3::splat(margin))
-    }
-
     /// Rebuilds the buckets from `positions`.
     pub fn rebuild(&mut self, positions: &[Vec3]) {
-        for &c in &self.touched {
-            self.head[c as usize] = -1;
+        for &b in &self.touched {
+            self.head[b as usize] = -1;
         }
         self.touched.clear();
         self.next.resize(positions.len(), -1);
+        self.cells.resize(positions.len(), [0; 3]);
         for (i, &p) in positions.iter().enumerate() {
-            let cell = self.index_for(p);
-            if self.head[cell] == -1 {
-                self.touched.push(cell as u32);
+            let cell = self.coord(p);
+            self.cells[i] = cell;
+            let b = self.hash(cell);
+            if self.head[b] == -1 {
+                self.touched.push(b as u32);
             }
-            self.next[i] = self.head[cell];
-            self.head[cell] = i as i32;
+            self.next[i] = self.head[b];
+            self.head[b] = i as i32;
         }
     }
 
-    fn coord_unclamped(&self, p: Vec3) -> [i32; 3] {
-        let f = (p - self.origin) * self.inv_cell;
+    fn coord(&self, p: Vec3) -> [i32; 3] {
+        let f = p * self.inv_cell;
         [f.x.floor() as i32, f.y.floor() as i32, f.z.floor() as i32]
     }
 
-    fn coord_clamped(&self, p: Vec3) -> [i32; 3] {
-        let c = self.coord_unclamped(p);
-        [
-            c[0].clamp(0, self.dims[0] - 1),
-            c[1].clamp(0, self.dims[1] - 1),
-            c[2].clamp(0, self.dims[2] - 1),
-        ]
-    }
-
-    fn linear(&self, c: [i32; 3]) -> usize {
-        (c[0] + c[1] * self.dims[0] + c[2] * self.dims[0] * self.dims[1]) as usize
-    }
-
-    fn index_for(&self, p: Vec3) -> usize {
-        self.linear(self.coord_clamped(p))
+    fn hash(&self, c: [i32; 3]) -> usize {
+        let h = (c[0] as u32).wrapping_mul(73_856_093)
+            ^ (c[1] as u32).wrapping_mul(19_349_663)
+            ^ (c[2] as u32).wrapping_mul(83_492_791);
+        (h as usize) & (BUCKETS - 1)
     }
 
     /// Calls `f(j, distance)` for every `j` whose position is within `radius`
@@ -103,27 +77,24 @@ impl Grid {
         positions: &[Vec3],
         mut f: impl FnMut(usize, f32),
     ) {
-        let lo = self.coord_unclamped(p - Vec3::splat(radius));
-        let hi = self.coord_unclamped(p + Vec3::splat(radius));
-        let lo = [lo[0].max(0), lo[1].max(0), lo[2].max(0)];
-        let hi = [
-            hi[0].min(self.dims[0] - 1),
-            hi[1].min(self.dims[1] - 1),
-            hi[2].min(self.dims[2] - 1),
-        ];
-        if lo[0] > hi[0] || lo[1] > hi[1] || lo[2] > hi[2] {
-            return;
-        }
+        let lo = self.coord(p - Vec3::splat(radius));
+        let hi = self.coord(p + Vec3::splat(radius));
         let r2 = radius * radius;
         for cz in lo[2]..=hi[2] {
             for cy in lo[1]..=hi[1] {
                 for cx in lo[0]..=hi[0] {
-                    let mut j = self.head[self.linear([cx, cy, cz])];
+                    let cell = [cx, cy, cz];
+                    let mut j = self.head[self.hash(cell)];
                     while j >= 0 {
                         let jj = j as usize;
-                        let d2 = (positions[jj] - p).length_squared();
-                        if d2 <= r2 {
-                            f(jj, d2.sqrt());
+                        // A bucket can hold birds from several cells; only the
+                        // one matching `cell` belongs here, which also stops a
+                        // bird being visited twice when two query cells collide.
+                        if self.cells[jj] == cell {
+                            let d2 = (positions[jj] - p).length_squared();
+                            if d2 <= r2 {
+                                f(jj, d2.sqrt());
+                            }
                         }
                         j = self.next[jj];
                     }
@@ -131,11 +102,6 @@ impl Grid {
             }
         }
     }
-}
-
-/// Convenience constructor with the default cell size.
-pub fn default_grid(positions: &[Vec3]) -> Grid {
-    Grid::around(GRID_CELL, positions, 20.0)
 }
 
 #[cfg(test)]
@@ -150,7 +116,7 @@ mod tests {
             Vec3::new(3.0, 0.0, 0.0),
             Vec3::new(10.0, 0.0, 0.0),
         ];
-        let mut grid = Grid::around(1.0, &pos, 1.0);
+        let mut grid = Grid::new(1.0);
         grid.rebuild(&pos);
         let mut found = Vec::new();
         grid.for_each_within(Vec3::ZERO, 2.5, &pos, |j, _| found.push(j));
@@ -162,7 +128,7 @@ mod tests {
     fn rebuild_clears_old_cells() {
         let first = vec![Vec3::ZERO, Vec3::new(50.0, 0.0, 0.0)];
         let second = vec![Vec3::new(50.0, 0.0, 0.0)];
-        let mut grid = Grid::around(1.0, &first, 1.0);
+        let mut grid = Grid::new(1.0);
         grid.rebuild(&first);
         grid.rebuild(&second);
         let mut found = Vec::new();
@@ -182,7 +148,7 @@ mod tests {
         let pos: Vec<Vec3> = (0..800)
             .map(|_| Vec3::new(rnd() * 30.0, rnd() * 30.0, rnd() * 10.0))
             .collect();
-        let mut grid = Grid::around(4.0, &pos, 5.0);
+        let mut grid = Grid::new(4.0);
         grid.rebuild(&pos);
         for i in 0..pos.len() {
             for &r in &[1.0f32, 3.0, 8.0, 20.0] {
@@ -196,5 +162,18 @@ mod tests {
                 assert_eq!(got, want, "i={i} r={r}");
             }
         }
+    }
+
+    /// Birds far outside the old ±210 m box must still find each other.
+    #[test]
+    fn finds_neighbours_far_from_the_origin() {
+        let pos: Vec<Vec3> = (0..40)
+            .map(|i| Vec3::new(300.0 + i as f32 * 0.5, 0.0, 100.0))
+            .collect();
+        let mut grid = Grid::new(4.0);
+        grid.rebuild(&pos);
+        let mut found = Vec::new();
+        grid.for_each_within(pos[0], 3.0, &pos, |j, _| found.push(j));
+        assert!(found.len() > 3, "only {} neighbours at 300 m", found.len());
     }
 }
