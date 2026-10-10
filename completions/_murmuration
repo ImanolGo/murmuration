@@ -1,0 +1,57 @@
+#compdef murmuration
+
+autoload -U is-at-least
+
+_murmuration() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
+
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
+
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'--analyze=[Run headless for this many simulated seconds, printing flock statistics once per second, then exit]:SECONDS:_default' \
+'--zigzag-k=[Copying threshold k for the zigzag wave (1–7)]:ZIGZAG_K:_default' \
+'--turning=[Turning model\: base (banked) or inertial (review C7)]:TURNING:((base\:"The bank tracks \`atan(a_lat/g)\` with a first-order lag"
+inertial\:"The bank *rate* has momentum, after the inertial spin model (Cavagna et al. 2015)\: once a bird starts to roll it keeps rolling (review C7)"))' \
+'--colors=[Colour handling]:COLORS:((auto\:"Detect from the environment"
+truecolor\:"24-bit colour"
+ansi256\:"Nearest of the 256 xterm colours"
+none\:"Plain braille, no colour"))' \
+'--arc-minutes=[Length of one evening, in minutes]:ARC_MINUTES:_default' \
+'--birds=[Number of birds \[default\: from the terminal size, 4000–8000\]]:BIRDS:_default' \
+'--seed=[Random seed for the evening]:SEED:_default' \
+'--turn-side=[Forced-turn experiment\: birds disturbed]:TURN_SIDE:_default' \
+'--turn-angle=[Forced-turn experiment\: imposed heading change, in radians]:TURN_ANGLE:_default' \
+'--turn-window=[Forced-turn experiment\: seconds to simulate after the disturbance]:TURN_WINDOW:_default' \
+'--turn-min=[Forced-turn experiment\: minimum local heading change to include a bird, in radians]:TURN_MIN:_default' \
+'--turns[Run the forced-turn experiment headless, report the fitted wave speed and R², then exit]' \
+'--agitation[Run the agitation-wave experiment (falcon attack) headless and exit]' \
+'--probe[Run the part-D probe (2000 birds, seed 0, four minutes) and print the metrics that catch the "looks wrong" failures, then exit]' \
+'--falcon[A falcon hunts from the start]' \
+'--screensaver[Exit on any key press or mouse movement]' \
+'--no-mouse[Do not capture the mouse (no mouse falcon, no exit-on-move)]' \
+'--no-arc[Hold the display phase (no evening arc)]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+'-V[Print version]' \
+'--version[Print version]' \
+&& ret=0
+}
+
+(( $+functions[_murmuration_commands] )) ||
+_murmuration_commands() {
+    local commands; commands=()
+    _describe -t commands 'murmuration commands' commands "$@"
+}
+
+if [ "$funcstack[1]" = "_murmuration" ]; then
+    _murmuration "$@"
+else
+    compdef _murmuration murmuration
+fi

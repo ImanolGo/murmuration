@@ -19,7 +19,7 @@ pub struct Stats {
     pub mean_neighbours: f32,
     /// Fraction of birds in the largest single-link cluster at 5 m.
     pub largest_cluster_fraction: f32,
-    /// Mean nearest-neighbour distance over interior birds [m].
+    /// Mean nearest-neighbour distance over interior birds \[m\].
     pub mean_nnd: f32,
     /// Middle-to-shortest inertia ratio `I2/I1`.
     pub i2_i1: f32,
@@ -30,21 +30,21 @@ pub struct Stats {
     /// Fraction of interior birds whose nearest neighbour is ahead or behind
     /// (`|cos θ| > 0.9`); isotropic would be 0.1.
     pub nn_aligned_fraction: f32,
-    /// Largest horizontal distance from the roost centre [m].
+    /// Largest horizontal distance from the roost centre \[m\].
     pub max_radius_h: f32,
-    /// Largest 3-D distance from the roost centre [m].
+    /// Largest 3-D distance from the roost centre \[m\].
     pub max_radius_3d: f32,
     /// Mean speed [m/s].
     pub mean_speed: f32,
-    /// Mean adaptive interaction radius [m].
+    /// Mean adaptive interaction radius \[m\].
     pub mean_radius: f32,
-    /// Mean distance of birds from the flock centroid [m].
+    /// Mean distance of birds from the flock centroid \[m\].
     pub spread: f32,
-    /// Mean `|z - z0|` [m].
+    /// Mean `|z - z0|` \[m\].
     pub mean_dz: f32,
     /// Fraction of birds alarmed by the falcon.
     pub alarmed_fraction: f32,
-    /// Mean absolute bank angle [rad].
+    /// Mean absolute bank angle \[rad\].
     pub mean_roll: f32,
     /// Fraction of birds pinned at the ±`MAX_BANK` clamp.
     pub clamp_fraction: f32,
@@ -52,9 +52,9 @@ pub struct Stats {
     /// is counter-clockwise seen from above. A persistent sign means the flock
     /// is milling around the boundary instead of crossing the roost.
     pub tangential: f32,
-    /// Standard deviation of bird height [m].
+    /// Standard deviation of bird height \[m\].
     pub height_std: f32,
-    /// Horizontal distance of the flock centroid from the roost centre [m].
+    /// Horizontal distance of the flock centroid from the roost centre \[m\].
     pub centroid_radius: f32,
 }
 

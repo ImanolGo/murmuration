@@ -26,9 +26,9 @@ pub enum Phase {
 
 /// The evening clock.
 pub struct Arc {
-    /// Length of one evening [s].
+    /// Length of one evening \[s\].
     pub duration: f32,
-    /// Time within the current evening [s].
+    /// Time within the current evening \[s\].
     pub time: f32,
     base_z0: f32,
     rng: ChaCha8Rng,

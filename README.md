@@ -1,5 +1,11 @@
 # murmuration
 
+[![crates.io](https://img.shields.io/crates/v/murmuration.svg)](https://crates.io/crates/murmuration)
+[![docs.rs](https://docs.rs/murmuration/badge.svg?v=2)](https://docs.rs/murmuration)
+[![CI](https://github.com/ImanolGo/murmuration/actions/workflows/ci.yml/badge.svg)](https://github.com/ImanolGo/murmuration/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ImanolGo/murmuration)](https://github.com/ImanolGo/murmuration/releases)
+[![License: MIT](https://img.shields.io/crates/l/murmuration.svg)](LICENSE)
+
 Starlings at dusk, in your terminal.
 
 murmuration is a live, three-dimensional flock of a few thousand starlings,
@@ -24,7 +30,9 @@ simulates the birds continuously. See [recording the demo](#recording-the-demo).
 
 ## Getting started
 
-Requires **Rust 1.88 or newer** to build. A truecolour terminal and a monospace
+Requires Rust **1.95** or newer to build. The MSRV policy is the latest stable
+Rust minus two releases; raising it is not a breaking change. A truecolour
+terminal and a monospace
 font with braille glyphs give the best result. The application runs locally,
 without network access, accounts or required configuration files.
 

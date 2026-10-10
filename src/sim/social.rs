@@ -18,9 +18,9 @@ use super::params::*;
 /// The result of one bird's decision: its new steering force and interaction
 /// radius, plus the neighbourhood statistics used for analysis.
 pub struct Decision {
-    /// Steering force held until the next decision [N].
+    /// Steering force held until the next decision \[N\].
     pub force: Vec3,
-    /// Adaptive interaction radius for the next interval [m].
+    /// Adaptive interaction radius for the next interval \[m\].
     pub radius: f32,
     /// Number of neighbours within the current radius `|N_i|`.
     pub neighbours: u32,

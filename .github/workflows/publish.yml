@@ -1,0 +1,68 @@
+name: Publish to crates.io
+
+# Publishes the crate on crates.io Trusted Publishing: a GitHub OIDC token is
+# exchanged for a short-lived crates.io token, so no long-lived
+# CARGO_REGISTRY_TOKEN secret is needed.
+#
+# It runs on the version tag, but waits for the GitHub Release to appear before
+# publishing. The Release workflow only creates that release after every build
+# job has succeeded, so a tag whose Windows (or any other) build fails never
+# reaches crates.io. Trusted Publishing rejects the `workflow_run` trigger, so
+# this waits for the release instead of chaining off the workflow.
+#
+# One-time setup on crates.io (required before this works):
+#   https://crates.io/crates/murmuration/settings -> Trusted Publishing
+#   add a GitHub publisher for repo "ImanolGo/murmuration" and workflow
+#   "publish.yml" (an environment is optional).
+#
+# If you would rather use a token, delete the auth step and set the
+# CARGO_REGISTRY_TOKEN repository secret instead.
+on:
+  push:
+    tags: ["v[0-9]*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write # required for Trusted Publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # The Release workflow creates the GitHub Release only after the build
+      # jobs succeed, so waiting for it means the binaries built first.
+      - name: Wait for the release
+        run: |
+          for _ in $(seq 1 60); do
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "release $TAG is up"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "release $TAG never appeared" >&2
+          exit 1
+
+      - name: Authenticate with crates.io
+        uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
+      - name: cargo publish
+        run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

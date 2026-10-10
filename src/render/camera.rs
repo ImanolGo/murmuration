@@ -11,25 +11,25 @@ use glam::Vec3;
 
 use crate::sim::World;
 
-/// Eye height of the observer [m].
+/// Eye height of the observer \[m\].
 pub const EYE_HEIGHT: f32 = 1.7;
 
-/// Horizontal distance of the observer from the roost centre [m].
+/// Horizontal distance of the observer from the roost centre \[m\].
 pub const EYE_DISTANCE: f32 = 150.0;
 
-/// Nominal vertical field of view [rad].
+/// Nominal vertical field of view \[rad\].
 pub const FOV_V: f32 = 50.0 * std::f32::consts::PI / 180.0;
 
 /// Fraction of the binding screen dimension the flock should span.
 const FILL: f32 = 0.6;
 
-/// Bounds on the eased field of view [rad].
+/// Bounds on the eased field of view \[rad\].
 const FOV_MIN: f32 = 6.0 * std::f32::consts::PI / 180.0;
 const FOV_MAX: f32 = 100.0 * std::f32::consts::PI / 180.0;
 
 /// A perspective camera on the ground.
 pub struct Camera {
-    /// Eye position [m].
+    /// Eye position \[m\].
     pub eye: Vec3,
     /// Unit view direction.
     pub forward: Vec3,
@@ -37,9 +37,9 @@ pub struct Camera {
     pub right: Vec3,
     /// Unit up direction.
     pub up: Vec3,
-    /// Bearing around the roost [rad], changed by the `c` key.
+    /// Bearing around the roost \[rad\], changed by the `c` key.
     pub bearing: f32,
-    /// Current vertical field of view [rad], eased toward the target.
+    /// Current vertical field of view \[rad\], eased toward the target.
     pub fov: f32,
     smoothed_target: Vec3,
     ready: bool,

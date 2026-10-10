@@ -10,11 +10,11 @@ use std::sync::LazyLock;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
-/// Side of the blue-noise texture [dots]. A power of two, so the tiling mask is
+/// Side of the blue-noise texture \[dots\]. A power of two, so the tiling mask is
 /// `SIZE - 1`.
 pub const SIZE: usize = 64;
 
-/// Standard deviation of the void-and-cluster filter [dots].
+/// Standard deviation of the void-and-cluster filter \[dots\].
 const SIGMA: f32 = 1.9;
 
 /// The tiled blue-noise threshold texture. Index it with the dot's pixel

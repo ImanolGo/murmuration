@@ -27,27 +27,27 @@ use params::*;
 
 /// The flock and its environment.
 pub struct World {
-    /// Simulated time [s].
+    /// Simulated time \[s\].
     pub time: f32,
-    /// Preferred flight height, the roost "zero level" [m].
+    /// Preferred flight height, the roost "zero level" \[m\].
     pub z0: f32,
-    /// Bird positions [m].
+    /// Bird positions \[m\].
     pub position: Vec<Vec3>,
     /// Bird velocities [m/s].
     pub velocity: Vec<Vec3>,
-    /// Bank angle per bird [rad].
+    /// Bank angle per bird \[rad\].
     pub roll: Vec<f32>,
     /// Bank rate per bird [rad/s] (used by the inertial turning mode).
     pub spin: Vec<f32>,
-    /// Wingbeat phase per bird [rad].
+    /// Wingbeat phase per bird \[rad\].
     pub flap_phase: Vec<f32>,
     /// Wingbeat amplitude multiplier per bird (higher while accelerating).
     pub flap_amp: Vec<f32>,
-    /// Adaptive interaction radius per bird [m].
+    /// Adaptive interaction radius per bird \[m\].
     pub radii: Vec<f32>,
-    /// Steering force held since each bird's last decision [N].
+    /// Steering force held since each bird's last decision \[N\].
     pub steering: Vec<Vec3>,
-    /// Simulated time of each bird's next decision [s].
+    /// Simulated time of each bird's next decision \[s\].
     pub next_decision: Vec<f32>,
     /// Neighbour count `|N_i|` from each bird's last decision.
     pub neighbour_count: Vec<u32>,

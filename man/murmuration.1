@@ -1,0 +1,96 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH murmuration 1  "murmuration 0.1.1" 
+.SH NAME
+murmuration \- Starlings at dusk, in your terminal.
+.SH SYNOPSIS
+\fBmurmuration\fR [\fB\-\-analyze\fR] [\fB\-\-turns\fR] [\fB\-\-agitation\fR] [\fB\-\-probe\fR] [\fB\-\-zigzag\-k\fR] [\fB\-\-turning\fR] [\fB\-\-falcon\fR] [\fB\-\-colors\fR] [\fB\-\-screensaver\fR] [\fB\-\-no\-mouse\fR] [\fB\-\-no\-arc\fR] [\fB\-\-arc\-minutes\fR] [\fB\-\-birds\fR] [\fB\-\-seed\fR] [\fB\-\-turn\-side\fR] [\fB\-\-turn\-angle\fR] [\fB\-\-turn\-window\fR] [\fB\-\-turn\-min\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] 
+.SH DESCRIPTION
+Starlings at dusk, in your terminal.
+.SH OPTIONS
+.TP
+\fB\-\-analyze\fR \fI<SECONDS>\fR
+Run headless for this many simulated seconds, printing flock statistics once per second, then exit
+.TP
+\fB\-\-turns\fR
+Run the forced\-turn experiment headless, report the fitted wave speed and R², then exit
+.TP
+\fB\-\-agitation\fR
+Run the agitation\-wave experiment (falcon attack) headless and exit
+.TP
+\fB\-\-probe\fR
+Run the part\-D probe (2000 birds, seed 0, four minutes) and print the metrics that catch the "looks wrong" failures, then exit
+.TP
+\fB\-\-zigzag\-k\fR \fI<ZIGZAG_K>\fR [default: 2]
+Copying threshold k for the zigzag wave (1–7)
+.TP
+\fB\-\-turning\fR \fI<TURNING>\fR [default: base]
+Turning model: base (banked) or inertial (review C7)
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+base: The bank tracks `atan(a_lat/g)` with a first\-order lag
+.IP \(bu 2
+inertial: The bank *rate* has momentum, after the inertial spin model (Cavagna et al. 2015): once a bird starts to roll it keeps rolling (review C7)
+.RE
+.TP
+\fB\-\-falcon\fR
+A falcon hunts from the start
+.TP
+\fB\-\-colors\fR \fI<COLORS>\fR [default: auto]
+Colour handling
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+auto: Detect from the environment
+.IP \(bu 2
+truecolor: 24\-bit colour
+.IP \(bu 2
+ansi256: Nearest of the 256 xterm colours
+.IP \(bu 2
+none: Plain braille, no colour
+.RE
+.TP
+\fB\-\-screensaver\fR
+Exit on any key press or mouse movement
+.TP
+\fB\-\-no\-mouse\fR
+Do not capture the mouse (no mouse falcon, no exit\-on\-move)
+.TP
+\fB\-\-no\-arc\fR
+Hold the display phase (no evening arc)
+.TP
+\fB\-\-arc\-minutes\fR \fI<ARC_MINUTES>\fR [default: 15]
+Length of one evening, in minutes
+.TP
+\fB\-\-birds\fR \fI<BIRDS>\fR
+Number of birds [default: from the terminal size, 4000–8000]
+.TP
+\fB\-\-seed\fR \fI<SEED>\fR
+Random seed for the evening
+.TP
+\fB\-\-turn\-side\fR \fI<TURN_SIDE>\fR [default: 100]
+Forced\-turn experiment: birds disturbed
+.TP
+\fB\-\-turn\-angle\fR \fI<TURN_ANGLE>\fR [default: 0.8]
+Forced\-turn experiment: imposed heading change, in radians
+.TP
+\fB\-\-turn\-window\fR \fI<TURN_WINDOW>\fR [default: 2]
+Forced\-turn experiment: seconds to simulate after the disturbance
+.TP
+\fB\-\-turn\-min\fR \fI<TURN_MIN>\fR [default: 0.3]
+Forced\-turn experiment: minimum local heading change to include a bird, in radians
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help (see a summary with \*(Aq\-h\*(Aq)
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version
+.SH VERSION
+v0.1.1

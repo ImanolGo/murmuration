@@ -25,7 +25,7 @@ enum State {
 
 /// A bird of prey.
 pub struct Falcon {
-    /// Position [m].
+    /// Position \[m\].
     pub position: Vec3,
     /// Velocity [m/s].
     pub velocity: Vec3,

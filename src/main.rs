@@ -4,6 +4,7 @@ use anyhow::Result;
 use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, MouseEventKind};
 use glam::Vec3;
+use murmuration::cli::Cli;
 use murmuration::render::colour::{self, Depth};
 use murmuration::render::{Camera, Renderer};
 use murmuration::sim::params::{DT, V0, Z0, ZIGZAG_K};
@@ -14,69 +15,6 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
 use ratatui::style::Color;
-
-/// Starlings at dusk, in your terminal.
-#[derive(Debug, Parser)]
-#[command(name = "murmuration", version, about)]
-struct Cli {
-    /// Run headless for this many simulated seconds, printing flock statistics
-    /// once per second, then exit.
-    #[arg(long, value_name = "SECONDS")]
-    analyze: Option<f32>,
-    /// Run the forced-turn experiment headless, report the fitted wave speed
-    /// and R², then exit.
-    #[arg(long)]
-    turns: bool,
-    /// Run the agitation-wave experiment (falcon attack) headless and exit.
-    #[arg(long)]
-    agitation: bool,
-    /// Run the part-D probe (2000 birds, seed 0, four minutes) and print the
-    /// metrics that catch the "looks wrong" failures, then exit.
-    #[arg(long)]
-    probe: bool,
-    /// Copying threshold k for the zigzag wave (1–7).
-    #[arg(long, default_value_t = 2)]
-    zigzag_k: u32,
-    /// Turning model: base (banked) or inertial (review C7).
-    #[arg(long, value_enum, default_value_t = murmuration::sim::flight::Turning::Base)]
-    turning: murmuration::sim::flight::Turning,
-    /// A falcon hunts from the start.
-    #[arg(long)]
-    falcon: bool,
-    /// Colour handling.
-    #[arg(long, value_enum, default_value_t = murmuration::render::colour::Mode::Auto)]
-    colors: murmuration::render::colour::Mode,
-    /// Exit on any key press or mouse movement.
-    #[arg(long)]
-    screensaver: bool,
-    /// Do not capture the mouse (no mouse falcon, no exit-on-move).
-    #[arg(long)]
-    no_mouse: bool,
-    /// Hold the display phase (no evening arc).
-    #[arg(long)]
-    no_arc: bool,
-    /// Length of one evening, in minutes.
-    #[arg(long, default_value_t = 15.0)]
-    arc_minutes: f32,
-    /// Number of birds [default: from the terminal size, 4000–8000].
-    #[arg(long)]
-    birds: Option<usize>,
-    /// Random seed for the evening.
-    #[arg(long)]
-    seed: Option<u64>,
-    /// Forced-turn experiment: birds disturbed.
-    #[arg(long, default_value_t = 100)]
-    turn_side: usize,
-    /// Forced-turn experiment: imposed heading change [rad].
-    #[arg(long, default_value_t = 0.8)]
-    turn_angle: f32,
-    /// Forced-turn experiment: seconds to simulate after the disturbance.
-    #[arg(long, default_value_t = 2.0)]
-    turn_window: f32,
-    /// Forced-turn experiment: minimum local heading change to include a bird [rad].
-    #[arg(long, default_value_t = 0.3)]
-    turn_min: f32,
-}
 
 fn main() -> Result<()> {
     let cli = Cli::parse();

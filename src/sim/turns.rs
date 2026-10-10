@@ -13,7 +13,7 @@ use super::World;
 use super::flight::forward;
 use super::params::DT;
 
-/// Duration over which the imposed turn is applied [s].
+/// Duration over which the imposed turn is applied \[s\].
 const TURN_SECS: f32 = 0.5;
 
 /// Parameters of a forced-turn experiment.
@@ -21,9 +21,9 @@ const TURN_SECS: f32 = 0.5;
 pub struct TurnConfig {
     /// Number of birds on the disturbed side.
     pub side: usize,
-    /// Total imposed heading change [rad].
+    /// Total imposed heading change \[rad\].
     pub angle: f32,
-    /// Time simulated after the disturbance begins [s].
+    /// Time simulated after the disturbance begins \[s\].
     pub window: f32,
     /// Only birds whose heading changed by at least this much are fitted.
     pub min_turn: f32,
@@ -57,9 +57,9 @@ pub struct TurnWave {
     pub shape_ratio: f32,
     /// Whether the flock stayed in one cluster through the turn.
     pub stayed_connected: bool,
-    /// Span of arrival times [s].
+    /// Span of arrival times \[s\].
     pub time_span: f32,
-    /// Span of distances from the disturbance [m].
+    /// Span of distances from the disturbance \[m\].
     pub distance_span: f32,
     /// `(distance, arrival time)` for every fitted bird.
     pub points: Vec<(f32, f32)>,

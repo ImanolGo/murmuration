@@ -11,13 +11,13 @@ use crate::sim::{World, flight};
 
 use super::camera::Camera;
 
-/// Starling wingspan [m], used as the apparent disc size.
+/// Starling wingspan \[m\], used as the apparent disc size.
 const WINGSPAN: f32 = 0.4;
 
-/// Falcon wingspan [m].
+/// Falcon wingspan \[m\].
 const FALCON_WINGSPAN: f32 = 1.0;
 
-/// Distance over which a bird's contribution fades toward the sky [m].
+/// Distance over which a bird's contribution fades toward the sky \[m\].
 pub const ATMOSPHERE: f32 = 700.0;
 
 /// Adds each bird's raw opacity to `depth` and `opacity · distance` to `dist`

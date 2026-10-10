@@ -23,7 +23,7 @@ const DEFAULT_EXPOSURE: f32 = 25.0;
 /// Optical depth that maps to 70 % opacity: `-ln(1 - 0.7)`.
 const TARGET_TAU: f32 = 1.204;
 
-/// Time constant of the exposure adaptation [s]. Slow enough that a sudden
+/// Time constant of the exposure adaptation \[s\]. Slow enough that a sudden
 /// blackening (a falcon attack) is still visible.
 const EXPOSURE_TAU: f32 = 4.0;
 
@@ -31,7 +31,7 @@ const EXPOSURE_TAU: f32 = 4.0;
 const EXPOSURE_MIN: f32 = 1.0;
 const EXPOSURE_MAX: f32 = 400.0;
 
-/// Ease foreground transitions without changing the plants' geometry [s].
+/// Ease foreground transitions without changing the plants' geometry \[s\].
 const REED_FADE_TAU: f32 = 0.6;
 
 /// Persistent per-frame buffers for the renderer.
