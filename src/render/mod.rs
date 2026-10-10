@@ -144,6 +144,8 @@ fn composite(
 ) {
     let area = frame.area();
     let buf = frame.buffer_mut();
+    let tex = dither::texture();
+    let mask = dither::SIZE - 1;
     for row in 0..area.height {
         let t = row as f32 / area.height.saturating_sub(1).max(1) as f32;
         let sky_rgb = sky::sky_colour(t, evening);
@@ -161,7 +163,9 @@ fn composite(
                     sum += alpha;
                     raw_tau_sum += raw;
                     dist_sum += dist[idx];
-                    if alpha > dither::threshold(dx, dy) {
+                    let px = col as usize * 2 + dx;
+                    let py = row as usize * 4 + dy;
+                    if alpha > tex[py & mask][px & mask] {
                         bits |= dither::dot_bit(dx, dy);
                     }
                 }
