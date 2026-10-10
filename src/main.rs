@@ -1,8 +1,9 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use murmuration::render::{Camera, Renderer};
 use murmuration::sim::params::DT;
 use murmuration::sim::{World, analysis};
 
@@ -32,7 +33,7 @@ fn main() -> Result<()> {
     }
 
     let mut terminal = ratatui::init();
-    let result = run(&mut terminal);
+    let result = run(&mut terminal, cli.birds, seed);
     ratatui::restore();
     result
 }
@@ -46,16 +47,39 @@ fn analyze(seconds: f32, birds: usize, seed: u64) {
     for s in 1..=steps {
         world.step(DT);
         if s % per_second == 0 {
-            last = murmuration::sim::analysis::compute(&world);
+            last = analysis::compute(&world);
             println!("t={:6.1}s {}", world.time, last.line());
         }
     }
     println!("# summary  {}", last.line());
 }
 
-fn run(terminal: &mut ratatui::DefaultTerminal) -> Result<()> {
+fn run(terminal: &mut ratatui::DefaultTerminal, birds: usize, seed: u64) -> Result<()> {
+    let mut world = World::new(birds, seed);
+    let mut camera = Camera::new();
+    let mut renderer = Renderer::new();
+    camera.update(&world, 1.0);
+
+    let mut accumulator = 0.0f32;
+    let mut last = Instant::now();
     loop {
-        terminal.draw(murmuration::render::draw)?;
+        let now = Instant::now();
+        let dt = (now - last).as_secs_f32().min(0.25);
+        last = now;
+
+        accumulator += dt;
+        let mut stepped = false;
+        while accumulator >= DT {
+            world.step(DT);
+            accumulator -= DT;
+            stepped = true;
+        }
+        if stepped {
+            camera.update(&world, dt);
+        }
+
+        terminal.draw(|frame| renderer.draw(frame, &world, &camera))?;
+
         if event::poll(Duration::from_millis(16))?
             && let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press

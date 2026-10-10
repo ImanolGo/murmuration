@@ -12,7 +12,7 @@ itself internally inconsistent, the deviation and the reason are recorded here.
 | --- | --- |
 | M0 Skeleton | done |
 | M1 Headless flock | done |
-| M2 First light | not started |
+| M2 First light | done |
 
 Build and checks (must be green before every commit):
 
@@ -109,3 +109,43 @@ all moving together at cruise speed. The paper starts birds at random positions
 and orientations over the roost; starting them unaligned this way did not
 self-organise into a single flock in my implementation. The evening arc (M5)
 will spawn arriving groups instead.
+
+## M2 — first light
+
+The live view now renders the flock. Pipeline (`src/render/`):
+
+- `camera.rs` — a ground observer at 1.7 m, standing off from the roost so the
+  flock spans ~60 % of a 50° vertical field; look target and distance are eased
+  (time constants 2 s and 3 s).
+- `splat.rs` — each bird adds optical depth `a = k_dark·(0.15 + 0.85·|up·d̂|)·fade(depth)`
+  (Costanzo et al. 2022), splatted bilinearly when its disc is sub-pixel or as a
+  small Gaussian otherwise. `k_dark = 25` was chosen so a settled flock reads as
+  dense smoke rather than a scatter of dots.
+- `dither.rs` — a 2 × 4 Bayer matrix turns opacity into braille dots; thin
+  fringes break into individual dots.
+- `colour.rs` — cell foreground fades from the sky tint to near-black with the
+  cell's mean opacity; the background is the sky gradient.
+- `mod.rs` — `Renderer` owns the optical-depth buffer and composites a frame.
+
+The live loop in `main.rs` advances the world in fixed 5 ms steps by wall-clock
+time, eases the camera, and draws. It runs the display phase only (no arc yet).
+
+### Validation
+
+- A fixed-seed frame (2000 birds, seed 42, 30 s, 80 × 24) is snapshotted with
+  `insta` in `tests/frame.rs`; it shows a dense, soft-edged, stippled mass with
+  no individual bird dots, which matches the character of dusk murmuration
+  footage and the StarDisplay figures.
+- `tests/perf.rs` (ignored by default) measures **69–72 fps** for 4000 birds at
+  both 80 × 24 and 200 × 60 in release mode, well above the 30 fps target.
+- A pseudo-terminal run confirms the live view enters the alternate screen,
+  emits truecolor and braille, and restores the terminal on `q`.
+
+### Findings
+
+- The first render was too faint (`k_dark = 2.6`); with sub-pixel birds the mean
+  opacity per dot was below the first Bayer threshold, so cells lit up a single
+  dot and the flock looked like a cloud of dots. Raising `k_dark` fixed the
+  density without scripting any shape — the form still comes from the birds.
+- No plan-vs-paper conflicts arose in M2; the constants are presentation, not
+  model, parameters.
