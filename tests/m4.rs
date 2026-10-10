@@ -27,6 +27,11 @@ fn m4_agitation_wave_propagates() {
         "agitation wave not a clean front: R2 = {}",
         wave.r2
     );
+    assert!(
+        (3.0..=25.0).contains(&wave.speed),
+        "agitation wave speed = {:.1} m/s, target 3-25 m/s",
+        wave.speed
+    );
 }
 
 /// A higher copying threshold should reach fewer birds (a weaker/slower wave).

@@ -14,7 +14,7 @@ itself internally inconsistent, the deviation and the reason are recorded here.
 | M1 Headless flock | done |
 | M2 First light | done |
 | M3 Turns | measurement done; linear wave not emerging (see below) |
-| M4 Falcon | mechanics done; agitation wave propagates but is faster than the literature range (see below) |
+| M4 Falcon | done; agitation wave in the 3–25 m/s range (see below) |
 | M5 The evening | done |
 | M6 Polish & release | done (v0.1.0) |
 
@@ -291,26 +291,29 @@ the base model.
 
 - **Agitation wave** (`--agitation`, `tests/m4.rs`): with the copying rule
   seeded on a patch, the wave propagates and the arrival times are a clean front
-  — high R² (0.77–0.97). The threshold weakens the wave as expected: `k = 1`
-  reaches the whole flock, `k = 2` a few percent, `k ≥ 3` dies out in this dense
-  flock.
+  — high R² (0.99 for `k = 1`–`2`). The threshold weakens the wave as expected:
+  `k = 1` 18 m/s, `k = 2` 9.9 m/s (both reach the whole flock), `k = 3` 4.7 m/s
+  (8 %), `k ≥ 4` dies out. `m4_agitation_wave_propagates` now asserts the default
+  `k = 2` speed is in 3–25 m/s.
 - **Recorded session** (`--analyze 120 --birds 2000 --seed 42 --falcon`): the
   falcon attacks at roughly t = 35 s, 73 s and 98 s. Alarmed fraction peaks at
   66–76 % (blackening), mean |roll| rises to 0.9–1.1 rad (the zigzag wave), and
   the flock spread grows by ~30 % (flash expansion). Large splits are not
   required. Seed 42, times 35 s / 73 s / 98 s.
 
-### Gap, reported not faked
+### Agitation speed fixed (review B2)
 
-The agitation **wave speed is 50–85 m/s, above the 3–25 m/s** PLAN.md cites from
-Hemelrijk et al. 2015. The trend with `k` is right (higher threshold → slower,
-weaker wave), but the absolute speed is too high and `k ≥ 3` does not propagate.
-The likely cause is the flock density (NND ≈ 0.8 m, interaction radius ≈ 1.5 m)
-combined with staggered decisions (each bird reacts every `Δu`, but at different
-phases), so the front can advance several neighbour-hops per reaction time. The
-`k = 1` speed of ~85 m/s is close to one interaction radius per `Δt`; hitting the
-literature range would need a sparser flock or a longer effective reaction time,
-which would change the M1 density. No rule was added to slow the wave by hand.
+The wave speed is now within the 3–25 m/s range PLAN.md cites from Hemelrijk et
+al. 2015. The old 50–85 m/s came from the copying window: a bird copied any
+neighbour whose zigzag had started within the last `Δu`, including one that had
+copied 5 ms earlier, so the front could hop one neighbour per 5 ms integration
+step. A bird now counts a neighbour only once its zigzag is at least `Δu` old
+(and still active), which limits the front to about one neighbour distance per
+reaction time. The review's window was `[Δu, 2Δu]`; the upper bound turned out to
+kill the default `k = 2` wave (the copyable set became too thin), so only the
+lower bound is used — it is the bound that limits the speed. Measured
+(`--agitation`, 2000 birds, seed 42): `k = 1` 18 m/s, `k = 2` 9.9 m/s, `k = 3`
+4.7 m/s, `k ≥ 4` dies out.
 
 ### Key bindings added
 

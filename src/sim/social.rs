@@ -82,8 +82,11 @@ pub fn decide(
             }
         }
 
-        // Neighbours that started a zigzag within the last reaction time.
-        if time - escape[j].zigzag_start <= DU {
+        // Neighbours whose zigzag is old enough to have been perceived. The
+        // lower bound is what stops the wave hopping one neighbour per 5 ms
+        // integration step; a manoeuvre must be at least one reaction time old.
+        let age = time - escape[j].zigzag_start;
+        if escape[j].zigzag_active && age >= DU {
             zigzag_neighbours += 1;
         }
     });
