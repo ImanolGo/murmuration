@@ -44,6 +44,10 @@ pub const TAU_ROLL: f32 = 0.15;
 /// Maximum roll rate [rad/s], so the roll cannot snap between extremes.
 pub const MAX_ROLL_RATE: f32 = 6.0;
 
+/// Time constant of the roll *rate* in the inertial turning experiment [s]
+/// (review C7). Larger means the roll keeps its momentum longer.
+pub const TAU_SPIN: f32 = 0.3;
+
 /// Bank angle limit [rad]. Not in the paper; a numerical safeguard so that a
 /// bird cannot roll past vertical and lose all lift.
 pub const MAX_BANK: f32 = 80.0 * std::f32::consts::PI / 180.0;

@@ -21,6 +21,7 @@ use rayon::prelude::*;
 use arc::Arc;
 use escape::EscapeState;
 use falcon::Falcon;
+use flight::Turning;
 use neighbours::Grid;
 use params::*;
 
@@ -36,6 +37,8 @@ pub struct World {
     pub velocity: Vec<Vec3>,
     /// Bank angle per bird [rad].
     pub roll: Vec<f32>,
+    /// Bank rate per bird [rad/s] (used by the inertial turning mode).
+    pub spin: Vec<f32>,
     /// Wingbeat phase per bird [rad].
     pub flap_phase: Vec<f32>,
     /// Wingbeat amplitude multiplier per bird (higher while accelerating).
@@ -56,6 +59,8 @@ pub struct World {
     pub falcon: Option<Falcon>,
     /// Number of neighbours whose zigzag starts a copy (1–7).
     pub zigzag_k: u32,
+    /// How the bank responds to steering (base or inertial; review C7).
+    pub turning: Turning,
     /// The evening arc, if one is running.
     pub arc: Option<Arc>,
     /// Target flock size the arc aims for during arrival.
@@ -78,6 +83,7 @@ impl World {
         let mut position = Vec::with_capacity(n);
         let mut velocity = Vec::with_capacity(n);
         let mut roll = Vec::with_capacity(n);
+        let mut spin = Vec::with_capacity(n);
         let mut flap_phase = Vec::with_capacity(n);
         let mut radii = Vec::with_capacity(n);
         let mut next_decision = Vec::with_capacity(n);
@@ -93,6 +99,7 @@ impl World {
             // it does not beeline across the whole display area first.
             velocity.push((Vec3::X + social::random_unit(&mut rng) * 0.05).normalize() * V0);
             roll.push(0.0);
+            spin.push(0.0);
             flap_phase.push(rng.random_range(0.0..std::f32::consts::TAU));
             radii.push(5.0);
             next_decision.push(rng.random_range(0.0..DU));
@@ -105,6 +112,7 @@ impl World {
             position,
             velocity,
             roll,
+            spin,
             flap_phase,
             flap_amp: vec![1.0; n],
             radii,
@@ -115,6 +123,7 @@ impl World {
             escape: vec![EscapeState::default(); n],
             falcon: None,
             zigzag_k: ZIGZAG_K,
+            turning: Turning::Base,
             arc: None,
             target_birds: n,
             rngs,
@@ -135,6 +144,7 @@ impl World {
         self.position.push(pos);
         self.velocity.push(vel);
         self.roll.push(0.0);
+        self.spin.push(0.0);
         self.flap_phase
             .push(rng.random_range(0.0..std::f32::consts::TAU));
         self.flap_amp.push(1.0);
@@ -154,6 +164,7 @@ impl World {
         self.position.swap_remove(i);
         self.velocity.swap_remove(i);
         self.roll.swap_remove(i);
+        self.spin.swap_remove(i);
         self.flap_phase.swap_remove(i);
         self.flap_amp.swap_remove(i);
         self.radii.swap_remove(i);
@@ -184,6 +195,7 @@ impl World {
         self.position.clear();
         self.velocity.clear();
         self.roll.clear();
+        self.spin.clear();
         self.flap_phase.clear();
         self.flap_amp.clear();
         self.radii.clear();
@@ -384,11 +396,13 @@ impl World {
         }
 
         // Flight integration for every bird.
+        let turning = self.turning;
         {
             let Self {
                 position,
                 velocity,
                 roll,
+                spin,
                 flap_phase,
                 flap_amp,
                 steering,
@@ -402,9 +416,11 @@ impl World {
                     &mut position[i],
                     &mut velocity[i],
                     &mut roll[i],
+                    &mut spin[i],
                     steering[i],
                     forced,
                     dt,
+                    turning,
                 );
                 // Advance the wingbeat and let it strengthen with acceleration.
                 let accel = (velocity[i] - before).length() / dt.max(1e-6);

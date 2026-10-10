@@ -7,6 +7,17 @@ use glam::Vec3;
 
 use super::params::*;
 
+/// How a bird's bank responds to the steering force.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, clap::ValueEnum)]
+pub enum Turning {
+    /// The bank tracks `atan(a_lat/g)` with a first-order lag.
+    #[default]
+    Base,
+    /// The bank *rate* has momentum, after the inertial spin model (Cavagna et
+    /// al. 2015): once a bird starts to roll it keeps rolling (review C7).
+    Inertial,
+}
+
 /// Unit forward direction of a velocity, with a stable fallback.
 pub fn forward(v: Vec3) -> Vec3 {
     if v.length_squared() > 1e-12 {
@@ -40,13 +51,16 @@ pub fn body_up(f: Vec3, beta: f32) -> Vec3 {
 /// Advances one bird by `dt` under its held steering force. When
 /// `forced_roll` is `Some`, that bank angle overrides the steering-driven
 /// banking (used by the zigzag manoeuvre).
+#[allow(clippy::too_many_arguments)]
 pub fn step_bird(
     p: &mut Vec3,
     v: &mut Vec3,
     roll: &mut f32,
+    spin: &mut f32,
     steering: Vec3,
     forced_roll: Option<f32>,
     dt: f32,
+    turning: Turning,
 ) {
     let f = forward(*v);
     let side = side_of(f);
@@ -62,7 +76,18 @@ pub fn step_bird(
         None => {
             let target = (a_lat / G).atan().clamp(-MAX_BANK, MAX_BANK);
             let rate = ((target - *roll) / TAU_ROLL).clamp(-MAX_ROLL_RATE, MAX_ROLL_RATE);
-            (*roll + rate * dt).clamp(-MAX_BANK, MAX_BANK)
+            match turning {
+                Turning::Base => {
+                    *spin = rate;
+                    (*roll + rate * dt).clamp(-MAX_BANK, MAX_BANK)
+                }
+                Turning::Inertial => {
+                    // The roll rate has momentum: it eases toward the target
+                    // rate with a second time constant.
+                    *spin += (rate - *spin) * (dt / TAU_SPIN);
+                    (*roll + *spin * dt).clamp(-MAX_BANK, MAX_BANK)
+                }
+            }
         }
     };
     *roll = beta;
@@ -99,8 +124,18 @@ mod tests {
         let mut p = Vec3::new(0.0, 0.0, 100.0);
         let mut v = Vec3::X * V0;
         let mut roll = 0.0;
+        let mut spin = 0.0;
         for _ in 0..200 {
-            step_bird(&mut p, &mut v, &mut roll, Vec3::ZERO, None, DT);
+            step_bird(
+                &mut p,
+                &mut v,
+                &mut roll,
+                &mut spin,
+                Vec3::ZERO,
+                None,
+                DT,
+                Turning::Base,
+            );
         }
         assert!((p.z - 100.0).abs() < 1.0, "sank or climbed: z = {}", p.z);
         assert!(
@@ -116,9 +151,42 @@ mod tests {
         let mut p = Vec3::new(0.0, 0.0, 100.0);
         let mut v = Vec3::X * V0;
         let mut roll = 0.0;
+        let mut spin = 0.0;
         for _ in 0..400 {
             // Re-decide a small rightward force each step.
-            step_bird(&mut p, &mut v, &mut roll, Vec3::Y * 0.5, None, DT);
+            step_bird(
+                &mut p,
+                &mut v,
+                &mut roll,
+                &mut spin,
+                Vec3::Y * 0.5,
+                None,
+                DT,
+                Turning::Base,
+            );
+        }
+        assert!(roll.abs() > 0.05, "did not bank: beta = {roll}");
+        assert!(v.y.abs() > 1.0, "did not turn: v = {v}");
+    }
+
+    #[test]
+    fn inertial_banking_also_turns() {
+        // The inertial mode must still bank and turn.
+        let mut p = Vec3::new(0.0, 0.0, 100.0);
+        let mut v = Vec3::X * V0;
+        let mut roll = 0.0;
+        let mut spin = 0.0;
+        for _ in 0..400 {
+            step_bird(
+                &mut p,
+                &mut v,
+                &mut roll,
+                &mut spin,
+                Vec3::Y * 0.5,
+                None,
+                DT,
+                Turning::Inertial,
+            );
         }
         assert!(roll.abs() > 0.05, "did not bank: beta = {roll}");
         assert!(v.y.abs() > 1.0, "did not turn: v = {v}");

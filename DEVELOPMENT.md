@@ -13,7 +13,7 @@ itself internally inconsistent, the deviation and the reason are recorded here.
 | M0 Skeleton | done |
 | M1 Headless flock | done |
 | M2 First light | done |
-| M3 Turns | measurement done; linear wave not emerging (see below) |
+| M3 Turns | re-run after the review fixes; still not linear; `--turning inertial` built (see below) |
 | M4 Falcon | done; agitation wave in the 3–25 m/s range (see below) |
 | M5 The evening | done |
 | M6 Polish & release | done (v0.1.0) |
@@ -246,7 +246,7 @@ time, eases the camera, and draws. It runs the display phase only (no arc yet).
 - No plan-vs-paper conflicts arose in M2; the constants are presentation, not
   model, parameters.
 
-## M3 — turns (partial)
+## M3 — turns (re-run after the review fixes)
 
 `sim/turns.rs` implements the forced-turn experiment: after the flock settles,
 the headings of the birds on one side are rotated gradually (0.5 s) by a set
@@ -256,41 +256,33 @@ mean removes the whole-flock body turn and leaves only the front. The distance
 from the disturbance is fitted against that arrival time (`--turns`
 reports the speed, R², polarisation, shape ratio and connectivity).
 
-The flock does turn as a coherent body: it stays in one piece, polarisation
-stays ≈ 0.96, and its heading changes together rather than fragmenting.
+The flock turns as a coherent body: it stays in one piece and polarisation
+stays ≈ 0.99. The original measurements were taken with the saturated banking
+from review A2, so they were re-run after the fixes. The shape is now preserved
+much better, but **the fitted turning wave is still not close to linear**:
 
-However, **the fitted turning wave is not close to linear**, so the M3
-acceptance bar is not met. Best result over a banking sweep (and the paper's
-`w_βin = 10` is already the best of the sweep):
-
-| config | speed | R² | birds turned | shape ratio |
+| config (seed 42) | speed | R² | birds turned | shape ratio |
 | --- | --- | --- | --- | --- |
-| side 100, angle 0.8, 2 s, threshold 0.3 | ~38 m/s | 0.47 | 13 % | 3.1 |
-| side 100, angle 0.8, 2 s, threshold 0.1 | ~800 m/s | 0.00 | 90 % | 3.1 |
-| side 300, angle 0.8, 3 s, threshold 0.3 | ~42 m/s | 0.25 | 53 % | 6.6 |
-| banking `w_βin` 1 … 20 | — | ≤ 0.47 | — | 1.5–3.6 |
+| side 100, angle 0.8, 2 s, threshold 0.3 | 8.9 m/s | 0.45 | 5 % | 1.60 |
+| side 300, angle 0.8, 3 s, threshold 0.3 | 24.6 m/s | 0.08 | 17 % | 1.56 |
+| side 500, angle 1.2, 4 s, threshold 0.4 | 29.1 m/s | 0.31 | 31 % | 1.11 |
+| side 100, angle 0.8, 2 s, threshold 0.1 | 76.7 m/s | 0.05 | 41 % | 1.60 |
 
-Lower thresholds are crossed by the flock's natural heading spread (~14° rms),
-not the wave; higher thresholds catch only the near edge, so the front is
-truncated before it crosses the flock. The turn also does not preserve the
-flock's shape: `I2/I1` changes by a factor of ~3–7 over the manoeuvre.
+Lower thresholds are still crossed by the flock's natural heading spread, and
+higher thresholds catch only the near edge, so the front is truncated. The shape
+is much better than before (shape ratio 1.1–1.6 versus 3.1–6.6), because the
+bank no longer saturates.
 
-**Why, best current explanation.** The alignment rule (Eq. 8) is symmetric: the
-perturbed birds are pulled back toward their unperturbed neighbours as strongly
-as those neighbours are pulled forward, so a local turn is damped instead of
-sweeping. The clean, linear turning waves in the literature (Attanasi et al.
-2014, Cavagna et al. 2015) come from *behavioural inertia* — a heading that
-keeps changing once started — which this model does not have. PLAN.md lists the
-inertial-spin model as a **separate experiment for after 0.1**
-(`--turning inertial`), which is consistent with the base rules not producing
-the wave on their own.
+**The `--turning inertial` experiment.** PLAN.md defers an inertial-spin variant
+(Cavagna et al. 2015), so it is now built: `--turning inertial` gives the roll
+*rate* momentum (a second time constant, `TAU_SPIN = 0.3 s`) on top of the
+coordinated turn. It does not improve linearity — the best R² over the same
+configs is 0.32 (default config 0.32 at 38 m/s), and longer momentum makes the
+wave faster and less linear. So behavioural inertia as modelled here is not
+enough to produce the literature's linear turning waves, and the base model's
+turning wave remains a reported gap rather than a faked one.
 
-This is reported rather than faked: no extra rule was added to manufacture a
-wave, and the shape is not forced. The next step, if the wave is required for
-0.1, is to build the deferred inertial variant and compare, rather than twist
-the base model.
-
-## M4 — falcon (mechanics done; agitation speed above range)
+## M4 — falcon (mechanics done)
 
 `sim/` (`escape.rs`, `falcon.rs`):
 

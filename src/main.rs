@@ -37,6 +37,9 @@ struct Cli {
     /// Copying threshold k for the zigzag wave (1–7).
     #[arg(long, default_value_t = 2)]
     zigzag_k: u32,
+    /// Turning model: base (banked) or inertial (review C7).
+    #[arg(long, value_enum, default_value_t = murmuration::sim::flight::Turning::Base)]
+    turning: murmuration::sim::flight::Turning,
     /// A falcon hunts from the start.
     #[arg(long)]
     falcon: bool,
@@ -83,7 +86,7 @@ fn main() -> Result<()> {
     let headless_birds = cli.birds.unwrap_or(2000);
 
     if let Some(seconds) = cli.analyze {
-        analyze(seconds, headless_birds, seed, cli.falcon);
+        analyze(seconds, headless_birds, seed, cli.falcon, cli.turning);
         return Ok(());
     }
     if cli.turns {
@@ -130,8 +133,15 @@ fn install_mouse_panic_hook() {
     }));
 }
 
-fn analyze(seconds: f32, birds: usize, seed: u64, with_falcon: bool) {
+fn analyze(
+    seconds: f32,
+    birds: usize,
+    seed: u64,
+    with_falcon: bool,
+    turning: murmuration::sim::flight::Turning,
+) {
     let mut world = World::new(birds, seed);
+    world.turning = turning;
     if with_falcon {
         world.spawn_falcon();
     }
@@ -151,6 +161,7 @@ fn analyze(seconds: f32, birds: usize, seed: u64, with_falcon: bool) {
 
 fn turns(birds: usize, seed: u64, cli: &Cli) {
     let mut world = World::new(birds, seed);
+    world.turning = cli.turning;
     for _ in 0..(20.0 / DT) as usize {
         world.step(DT);
     }
@@ -342,6 +353,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
         .unwrap_or_else(|| default_birds(size.width, size.height));
     let mut world = World::new(birds, seed);
     world.zigzag_k = cli.zigzag_k;
+    world.turning = cli.turning;
     if !cli.no_arc {
         world.enable_arc(cli.arc_minutes);
     }
