@@ -35,6 +35,10 @@ pub struct World {
     pub velocity: Vec<Vec3>,
     /// Bank angle per bird [rad].
     pub roll: Vec<f32>,
+    /// Wingbeat phase per bird [rad].
+    pub flap_phase: Vec<f32>,
+    /// Wingbeat amplitude multiplier per bird (higher while accelerating).
+    pub flap_amp: Vec<f32>,
     /// Adaptive interaction radius per bird [m].
     pub radii: Vec<f32>,
     /// Steering force held since each bird's last decision [N].
@@ -73,6 +77,7 @@ impl World {
         let mut position = Vec::with_capacity(n);
         let mut velocity = Vec::with_capacity(n);
         let mut roll = Vec::with_capacity(n);
+        let mut flap_phase = Vec::with_capacity(n);
         let mut radii = Vec::with_capacity(n);
         let mut next_decision = Vec::with_capacity(n);
         let mut rngs = Vec::with_capacity(n);
@@ -87,6 +92,7 @@ impl World {
             // it does not beeline across the whole display area first.
             velocity.push((Vec3::X + social::random_unit(&mut rng) * 0.05).normalize() * V0);
             roll.push(0.0);
+            flap_phase.push(rng.random_range(0.0..std::f32::consts::TAU));
             radii.push(5.0);
             next_decision.push(rng.random_range(0.0..DU));
             rngs.push(ChaCha8Rng::seed_from_u64(mix(seed, i as u64)));
@@ -98,6 +104,8 @@ impl World {
             position,
             velocity,
             roll,
+            flap_phase,
+            flap_amp: vec![1.0; n],
             radii,
             steering: vec![Vec3::ZERO; n],
             next_decision,
@@ -126,6 +134,9 @@ impl World {
         self.position.push(pos);
         self.velocity.push(vel);
         self.roll.push(0.0);
+        self.flap_phase
+            .push(rng.random_range(0.0..std::f32::consts::TAU));
+        self.flap_amp.push(1.0);
         self.radii.push(5.0);
         self.steering.push(Vec3::ZERO);
         self.next_decision
@@ -142,6 +153,8 @@ impl World {
         self.position.swap_remove(i);
         self.velocity.swap_remove(i);
         self.roll.swap_remove(i);
+        self.flap_phase.swap_remove(i);
+        self.flap_amp.swap_remove(i);
         self.radii.swap_remove(i);
         self.steering.swap_remove(i);
         self.next_decision.swap_remove(i);
@@ -170,6 +183,8 @@ impl World {
         self.position.clear();
         self.velocity.clear();
         self.roll.clear();
+        self.flap_phase.clear();
+        self.flap_amp.clear();
         self.radii.clear();
         self.steering.clear();
         self.next_decision.clear();
@@ -361,11 +376,14 @@ impl World {
                 position,
                 velocity,
                 roll,
+                flap_phase,
+                flap_amp,
                 steering,
                 escape,
                 ..
             } = self;
             for i in 0..position.len() {
+                let before = velocity[i];
                 let forced = escape::zigzag_roll(&escape[i], time);
                 flight::step_bird(
                     &mut position[i],
@@ -375,6 +393,11 @@ impl World {
                     forced,
                     dt,
                 );
+                // Advance the wingbeat and let it strengthen with acceleration.
+                let accel = (velocity[i] - before).length() / dt.max(1e-6);
+                flap_phase[i] =
+                    (flap_phase[i] + std::f32::consts::TAU * FLAP_HZ * dt) % std::f32::consts::TAU;
+                flap_amp[i] = 1.0 + (accel / G).clamp(0.0, 1.0);
             }
         }
     }
@@ -443,6 +466,19 @@ mod tests {
                 dir.dot(mean_dir) > 0.9,
                 "added bird {i} heads {dir} while the flock heads {mean_dir}"
             );
+        }
+    }
+
+    #[test]
+    fn wingbeat_phase_advances_and_stays_bounded() {
+        let mut w = World::new(100, 1);
+        let tau = std::f32::consts::TAU;
+        for _ in 0..100 {
+            w.step(DT);
+        }
+        for (&phase, &amp) in w.flap_phase.iter().zip(&w.flap_amp) {
+            assert!((0.0..tau).contains(&phase), "phase {phase} out of range");
+            assert!((1.0..=2.0).contains(&amp), "amplitude {amp} out of range");
         }
     }
 }

@@ -6,6 +6,7 @@
 //! A parallel buffer accumulates `opacity · distance`, so the compositor can
 //! fade the ink toward the sky with atmospheric distance (review C2).
 
+use crate::sim::params::FLAP_AMPLITUDE;
 use crate::sim::{World, flight};
 
 use super::camera::Camera;
@@ -45,7 +46,10 @@ pub fn splat(
         }
         let dhat = (camera.eye - world.position[i]).normalize_or_zero();
         let up = flight::body_up(flight::forward(world.velocity[i]), world.roll[i]);
-        let wing = up.dot(dhat).abs();
+        // Wingbeat shimmer: the apparent wing exposure flickers with the flap,
+        // more strongly while the bird accelerates.
+        let flap = 1.0 + FLAP_AMPLITUDE * world.flap_amp[i] * world.flap_phase[i].sin();
+        let wing = (up.dot(dhat).abs() * flap).clamp(0.0, 1.0);
         let atmosphere = (1.0 - z / ATMOSPHERE).clamp(0.25, 1.0);
         let a = (0.15 + 0.85 * wing) * atmosphere;
 

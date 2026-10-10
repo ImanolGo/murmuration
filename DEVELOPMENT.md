@@ -196,7 +196,10 @@ The live view now renders the flock. Pipeline (`src/render/`):
 - `splat.rs` — each bird adds raw optical depth `a = (0.15 + 0.85·|up·d̂|)·fade(depth)`
   (Costanzo et al. 2022), splatted bilinearly when its disc is sub-pixel or as a
   small Gaussian otherwise. A second buffer accumulates `a · depth` for the
-  atmospheric fade. The overall exposure is applied by the compositor.
+  atmospheric fade. The overall exposure is applied by the compositor. The wing
+  exposure flickers with a per-bird wingbeat phase (`flap_phase`, advanced at
+  10 Hz in the sim) by ±15 %, more while the bird accelerates — the living
+  shimmer PLAN.md lists (review C5).
 - `dither.rs` — a tiled 64 × 64 blue-noise threshold texture (generated with
   Ulichney's void-and-cluster algorithm, fixed seed) turns opacity into braille
   dots, so thin fringes break into individual dots without the screen-door
@@ -224,7 +227,7 @@ time, eases the camera, and draws. It runs the display phase only (no arc yet).
   valid on the machine that made it (run `cargo test -- --ignored` locally to
   check it). CI instead runs `frame_renders_a_flock`, a portable check that the
   frame contains plenty of braille and a reed silhouette.
-- `tests/perf.rs` (ignored by default) measures **48–52 fps** for 4000 birds at
+- `tests/perf.rs` (ignored by default) measures **45–58 fps** for 4000 birds at
   both 80 × 24 and 200 × 60 in release mode, well above the 30 fps target.
 - `settled_flock_covers_the_screen` (2000 birds, seed 0, four minutes, 120 × 36)
   checks the framing: the flock covers 20 % of the cells, above the 15 % target.

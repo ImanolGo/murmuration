@@ -149,6 +149,14 @@ pub const ZIGZAG_COOLDOWN: f32 = 1.5;
 /// Default number of neighbours whose zigzag starts a copy. PLAN.md (1–7).
 pub const ZIGZAG_K: u32 = 2;
 
+// --- Wingbeat (PLAN.md "Wingbeat", rendering shimmer) ---
+
+/// Wingbeat frequency [Hz].
+pub const FLAP_HZ: f32 = 10.0;
+
+/// Fraction by which the apparent wing exposure is modulated by the flap.
+pub const FLAP_AMPLITUDE: f32 = 0.15;
+
 // --- Falcon (PLAN.md "Falcon") ---
 
 /// Cruising speed of the falcon outside the flock [m/s]. PLAN.md.
