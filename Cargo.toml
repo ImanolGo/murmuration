@@ -1,12 +1,16 @@
 [package]
 name = "murmuration"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.88"
 description = "Starlings at dusk, in your terminal."
 license = "MIT"
 repository = "https://github.com/ImanolGo/murmuration"
 readme = "README.md"
+# The recorded demo (`docs/murmuration.gif`) is ~22 MB, well over crates.io's
+# 10 MB crate limit. Keep it in the repository (the README links to it by URL)
+# but out of the published package.
+exclude = ["docs/"]
 
 [dependencies]
 ratatui = "0.30"

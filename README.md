@@ -11,7 +11,7 @@ local rules, not from a prerecorded animation or a choreographed outline.
 It's an ambient piece, not a game: no score, no objectives, nothing you have to do.
 Leave it running between tasks, or step in as the falcon.
 
-![A simulated starling flock banking and changing shape against a dusk sky](docs/murmuration.gif)
+![A simulated starling flock banking and changing shape against a dusk sky](https://raw.githubusercontent.com/ImanolGo/murmuration/main/docs/murmuration.gif)
 
 Recorded from the current live application: **4,000 birds, seed 42, display-only
 dusk and an autonomous falcon**. The GIF loops for the preview; the application

@@ -6,6 +6,8 @@ All notable changes to this project. Format loosely follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-10
+
 ### Fixed
 
 - Fade foreground reeds smoothly with camera elevation and over time instead of
