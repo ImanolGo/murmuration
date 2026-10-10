@@ -1,0 +1,148 @@
+//! The social and environmental forces a bird sums into its steering force.
+//!
+//! Separation, centrality and cohesion, alignment and the roost pull follow the
+//! StarDisplay equations (Eq. 4–14). A random force stands in for perception
+//! and control noise.
+
+use glam::Vec3;
+use rand::Rng;
+use rand_chacha::ChaCha8Rng;
+
+use super::flight::{forward, side_of};
+use super::neighbours::Grid;
+use super::params::*;
+
+/// The result of one bird's decision: its new steering force and interaction
+/// radius, plus the neighbourhood statistics used for analysis.
+pub struct Decision {
+    /// Steering force held until the next decision [N].
+    pub force: Vec3,
+    /// Adaptive interaction radius for the next interval [m].
+    pub radius: f32,
+    /// Number of neighbours within the current radius `|N_i|`.
+    pub neighbours: u32,
+    /// Centrality `C_i` (Eq. 7): near 0 inside the flock, ~0.5–0.75 at the edge.
+    pub centrality: f32,
+}
+
+/// Computes bird `i`'s steering force and next interaction radius.
+pub fn decide(
+    i: usize,
+    positions: &[Vec3],
+    velocities: &[Vec3],
+    radii: &[f32],
+    grid: &Grid,
+    rng: &mut ChaCha8Rng,
+    z0: f32,
+) -> Decision {
+    let p = positions[i];
+    let r = radii[i];
+    let f_i = forward(velocities[i]);
+
+    let mut sep = Vec3::ZERO;
+    let mut coh = Vec3::ZERO;
+    let mut align = Vec3::ZERO;
+    let mut n_all = 0u32;
+    let mut n_star = 0u32;
+    let mut n_align = 0u32;
+
+    // One pass over the topological neighbourhood (Eq. 3).
+    grid.for_each_within(p, r, positions, |j, dist| {
+        if j == i {
+            return;
+        }
+        n_all += 1;
+        let dhat = (positions[j] - p) / dist.max(1e-6);
+
+        // Separation over all neighbours, no blind angle (Eq. 4).
+        let g = if dist <= R_H {
+            1.0
+        } else {
+            (-((dist - R_H) / SIGMA).powi(2)).exp()
+        };
+        sep -= dhat * g;
+
+        // Cohesion and alignment use the reduced neighbourhood N*_i (Eq. 6).
+        if f_i.dot(dhat) >= BLIND_COS {
+            align += forward(velocities[j]);
+            n_align += 1;
+            if dist > R_H {
+                coh += dhat;
+                n_star += 1;
+            }
+        }
+    });
+
+    let mut force = Vec3::ZERO;
+    if n_all > 0 {
+        force += sep * (W_SEP / n_all as f32);
+    }
+
+    // Centrality is measured over a wider radius, 2R_i (Eq. 7).
+    let mut csum = Vec3::ZERO;
+    let mut n_g = 0u32;
+    grid.for_each_within(p, 2.0 * r, positions, |j, dist| {
+        if j == i {
+            return;
+        }
+        csum += (positions[j] - p) / dist.max(1e-6);
+        n_g += 1;
+    });
+    let centrality = if n_g > 0 {
+        csum.length() / n_g as f32
+    } else {
+        0.0
+    };
+
+    // Cohesion, stronger at the border through C_i (Eq. 5).
+    if n_star > 0 {
+        force += coh * (W_COH * centrality / n_star as f32);
+    }
+
+    // Alignment: unit vector toward the mean neighbour heading (Eq. 8). The
+    // paper prints a sum; PLAN.md and the paper's text say "average", and the
+    // average is what vanishes when a bird is already aligned.
+    let a = if n_align > 0 {
+        align / n_align as f32 - f_i
+    } else {
+        Vec3::ZERO
+    };
+    if a.length_squared() > 1e-12 {
+        force += a.normalize() * W_ALIGN;
+    }
+
+    // Horizontal roost pull: tangential when outside the boundary (Eq. 11).
+    let horiz = Vec3::new(p.x, p.y, 0.0);
+    let dist_h = horiz.length();
+    if dist_h > R_ROOST {
+        let n = horiz / dist_h;
+        force += side_of(f_i) * (W_ROOST_H * (0.5 + 0.5 * f_i.dot(n)));
+    }
+
+    // Vertical roost pull toward the preferred height (Eq. 12). This is what
+    // keeps birds in level flight: with no pitch torque in the model, it is the
+    // only vertical restoring force.
+    force += Vec3::Z * (-W_ROOST_V * (p.z - z0));
+
+    // Speed control: relax toward the cruise speed (Eq. 1, part of Eq. 14).
+    let speed = velocities[i].length();
+    force += f_i * ((MASS / TAU) * (V0 - speed));
+
+    // Random force (Eq. 13).
+    force += random_unit(rng) * W_XI;
+
+    Decision {
+        force,
+        radius: radius_step(r, n_all),
+        neighbours: n_all,
+        centrality,
+    }
+}
+
+/// A uniformly distributed unit vector.
+pub fn random_unit(rng: &mut ChaCha8Rng) -> Vec3 {
+    let z: f32 = rng.random_range(-1.0..1.0);
+    let theta: f32 = rng.random_range(0.0..std::f32::consts::TAU);
+    let r = (1.0 - z * z).sqrt();
+    Vec3::new(r * theta.cos(), r * theta.sin(), z)
+}

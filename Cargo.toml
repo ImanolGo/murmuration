@@ -23,3 +23,11 @@ insta = "1"
 
 [profile.release]
 lto = "thin"
+
+# The M1 acceptance tests simulate minutes of flocking; optimise test builds so
+# `cargo test` stays quick, and speed up the dev binary a little.
+[profile.dev]
+opt-level = 1
+
+[profile.test]
+opt-level = 2
