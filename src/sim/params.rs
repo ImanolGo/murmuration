@@ -73,10 +73,8 @@ pub const R_SEP: f32 = 4.0;
 /// Standard deviation σ of the separation Gaussian [m]. Table 1.
 pub const SIGMA: f32 = 1.37;
 
-/// Weighting factor for the separation force [N]. Table 1 lists 1 N; raised to
-/// 1.7 N to bring the mean nearest-neighbour distance into the 0.7–1.5 m band
-/// the paper matches by tuning r_sep (our separation Gaussian is sharper).
-pub const W_SEP: f32 = 1.7;
+/// Weighting factor for the separation force [N]. Table 1.
+pub const W_SEP: f32 = 1.0;
 
 /// Weighting factor for the alignment force [N]. Table 1.
 pub const W_ALIGN: f32 = 0.5;

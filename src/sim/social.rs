@@ -69,7 +69,7 @@ pub fn decide(
         let g = if dist <= R_H {
             1.0
         } else {
-            (-((dist - R_H) / SIGMA).powi(2)).exp()
+            (-(dist - R_H).powi(2) / (2.0 * SIGMA * SIGMA)).exp()
         };
         sep -= dhat * g;
 

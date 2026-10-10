@@ -106,11 +106,10 @@ behaviour the same paper reports, so a correction was made and is documented.
   `w_RoostV · clamp((z0 − z)/h, −1, 1)` with `h = 15 m`. Measured with `--probe`,
   the height standard deviation rises from 0.7 m to 2.4 m and `I3/I1` falls from
   ~1000 to ~190.
-- **Separation and alignment weights.** `W_ALIGN` is back at Table 1's 0.5 N;
-  the earlier 1.0 N was compensating for normalising the alignment force, which
-  is now proportional to the misalignment. `W_SEP` is still raised from Table 1's
-  1.0 N to 1.7 N to put the nearest-neighbour distance in the 0.7–1.5 m band. The
-  paper tunes these parameters too; the direction is the same, the value differs.
+- **Separation and alignment weights.** Both are back at Table 1's values
+  (`W_SEP = 1.0 N`, `W_ALIGN = 0.5 N`). The earlier raised values compensated for
+  other errors: `W_ALIGN` for normalising the alignment force, and `W_SEP` for a
+  separation Gaussian that was missing its factor of 2 (see the M1 findings).
 - **Bank angle clamp.** The paper does not clamp `β`; ±80° is added as a
   numerical safeguard so a bird cannot roll past vertical and lose all lift.
 
@@ -131,6 +130,11 @@ behaviour the same paper reports, so a correction was made and is documented.
   the small root; with the fix, flatness is consistently 1.00 for a flat flock.
 - **Speed control.** Eq. 14's speed-relaxation term `f_τ` (Eq. 1) was initially
   omitted; adding it is needed for the flock to hold cruise speed.
+- **Separation Gaussian (Eq. 4).** The code used `exp(−((d − r_h)/σ)²)`; the
+  paper and PLAN.md have `exp(−(d − r_h)² / 2σ²)`. The missing factor of 2 made
+  the curve too narrow, which `W_SEP` had been raised to 1.7 N to compensate for.
+  With the correct curve and `W_SEP = 1.0 N`, the mean nearest-neighbour distance
+  is 0.8–1.1 m, inside the 0.7–1.5 m target.
 
 ### Part-D probe
 
