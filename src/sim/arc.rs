@@ -113,6 +113,13 @@ impl Arc {
         let radius = self.rng.random_range(250.0..350.0);
         let height = self.base_z0 + self.rng.random_range(-20.0..60.0);
         let base = Vec3::new(radius * bearing.cos(), radius * bearing.sin(), height);
+        // Each group heads for its own point over the roost, so groups merge
+        // rather than all converging on the centre.
+        let target = Vec3::new(
+            self.rng.random_range(-90.0..90.0),
+            self.rng.random_range(-90.0..90.0),
+            self.base_z0,
+        );
         for _ in 0..count {
             let pos = base
                 + Vec3::new(
@@ -120,7 +127,7 @@ impl Arc {
                     self.rng.random_range(-30.0..30.0),
                     self.rng.random_range(-10.0..10.0),
                 );
-            let toward = Vec3::new(0.0, 0.0, self.base_z0) - pos;
+            let toward = target - pos;
             let dir = (toward.normalize_or_zero()
                 + Vec3::new(
                     self.rng.random_range(-0.2..0.2),

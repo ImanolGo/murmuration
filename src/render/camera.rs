@@ -70,12 +70,18 @@ impl Camera {
         self.smoothed_target += (centroid - self.smoothed_target) * (1.0 - (-dt / 2.0).exp());
 
         // Characteristic radius of the flock, then the distance that makes it
-        // span FILL of the vertical field of view.
-        let radius = world
+        // span FILL of the vertical field of view. Use the 90th percentile of
+        // distances so a few stragglers do not push the camera far away.
+        let mut distances: Vec<f32> = world
             .position
             .iter()
             .map(|p| (*p - centroid).length())
-            .fold(1.0f32, f32::max);
+            .collect();
+        let index = ((distances.len() as f32 * 0.9) as usize).min(distances.len() - 1);
+        distances.select_nth_unstable_by(index, |a, b| {
+            a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let radius = distances[index].max(1.0);
         let target_distance = radius / (0.5 * FILL * FOV_V).tan();
         let target_distance = target_distance.max(EYE_HEIGHT + 5.0);
         self.distance += (target_distance - self.distance) * (1.0 - (-dt / 3.0).exp());

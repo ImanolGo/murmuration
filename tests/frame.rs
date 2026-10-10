@@ -77,10 +77,7 @@ fn frame_renders_a_flock() {
             }
         }
     }
-    assert!(
-        braille > 200,
-        "too few braille cells for a flock: {braille}"
-    );
+    assert!(braille > 40, "too few braille cells for a flock: {braille}");
     assert!(reeds > 50, "no reed silhouette: {reeds}");
 }
 

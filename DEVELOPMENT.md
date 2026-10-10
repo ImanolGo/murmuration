@@ -108,11 +108,14 @@ behaviour the same paper reports, so a correction was made and is documented.
 
 ### Initial condition
 
-For M1 the flock starts as a compact, slightly flattened cloud near the roost,
-all moving together at cruise speed. The paper starts birds at random positions
-and orientations over the roost; starting them unaligned this way did not
-self-organise into a single flock in my implementation. The evening arc (M5)
-will spawn arriving groups instead.
+For M1 the flock starts as a compact, slightly flattened cloud near the roost
+edge, all moving together at cruise speed. It used to start at the roost centre,
+which made the whole flock beeline ~150 m across the display area before the
+roost force turned it into a milling flock — an artefact of the start, not the
+rules. Starting at the edge (where the roost force acts at once) removes that.
+The paper starts birds at random positions and orientations over the roost;
+starting them unaligned this way did not self-organise into a single flock in my
+implementation. The evening arc (M5) spawns arriving groups instead.
 
 ## M2 — first light
 
@@ -120,7 +123,9 @@ The live view now renders the flock. Pipeline (`src/render/`):
 
 - `camera.rs` — a ground observer at 1.7 m, standing off from the roost so the
   flock spans ~60 % of a 50° vertical field; look target and distance are eased
-  (time constants 2 s and 3 s).
+  (time constants 2 s and 3 s). The stand-off uses the 90th percentile of
+  distances from the centroid, so a few stragglers in an elongated flock do not
+  push the camera so far that the bulk becomes tiny.
 - `splat.rs` — each bird adds optical depth `a = k_dark·(0.15 + 0.85·|up·d̂|)·fade(depth)`
   (Costanzo et al. 2022), splatted bilinearly when its disc is sub-pixel or as a
   small Gaussian otherwise. `k_dark = 25` was chosen so a settled flock reads as

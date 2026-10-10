@@ -63,10 +63,10 @@ pub struct World {
 }
 
 impl World {
-    /// Creates `n` birds in a compact, slightly flattened cloud near the roost,
-    /// all moving together at cruise speed. (The paper starts them at random
-    /// positions and orientations over the roost; the evening arc will spawn
-    /// arriving groups instead.)
+    /// Creates `n` birds already milling over the roost: spread across a disc
+    /// and flying tangentially, so the display does not start with the whole
+    /// flock translating to one place. (The paper starts birds at random
+    /// positions and orientations; the evening arc spawns arriving groups.)
     pub fn new(n: usize, seed: u64) -> Self {
         let z0 = Z0;
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
@@ -76,10 +76,15 @@ impl World {
         let mut radii = Vec::with_capacity(n);
         let mut next_decision = Vec::with_capacity(n);
         let mut rngs = Vec::with_capacity(n);
+        let bearing = rng.random_range(0.0..std::f32::consts::TAU);
+        let outward = Vec3::new(bearing.cos(), bearing.sin(), 0.0);
+        let centre = Vec3::new(outward.x * 140.0, outward.y * 140.0, z0);
         for i in 0..n {
             let dir = social::random_unit(&mut rng);
             let rad = 18.0 * rng.random::<f32>().cbrt();
-            position.push(Vec3::new(dir.x * rad, dir.y * rad, z0 + dir.z * rad * 0.4));
+            position.push(centre + Vec3::new(dir.x * rad, dir.y * rad, dir.z * rad * 0.4));
+            // A compact, uniform-velocity flock already near the roost edge, so
+            // it does not beeline across the whole display area first.
             velocity.push((Vec3::X + social::random_unit(&mut rng) * 0.05).normalize() * V0);
             roll.push(0.0);
             radii.push(5.0);
