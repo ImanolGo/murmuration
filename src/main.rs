@@ -309,7 +309,7 @@ fn probe_coverage(world: &World, w: u16, h: u16) -> f32 {
     let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
     let mut renderer = Renderer::new(Depth::TrueColor);
     terminal
-        .draw(|frame| renderer.draw(frame, world, &camera))
+        .draw(|frame| renderer.draw(frame, world, &camera, 1.0 / 30.0))
         .unwrap();
     let buf = terminal.backend().buffer();
     let mut lit = 0u32;
@@ -381,7 +381,7 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
             }
         }
 
-        let completed = terminal.draw(|frame| renderer.draw(frame, &world, &camera))?;
+        let completed = terminal.draw(|frame| renderer.draw(frame, &world, &camera, dt))?;
         if save_requested {
             save_requested = false;
             let path = format!("murmuration-frame-seed{seed}-{:.1}s.ansi", world.time);

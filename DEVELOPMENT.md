@@ -193,10 +193,10 @@ The live view now renders the flock. Pipeline (`src/render/`):
   bounding box fills 60 % of the binding (smaller) screen dimension. This
   replaced a stand-off that dollied back with the flock's 3D 90th-percentile
   radius, which kept a wide flat flock small and looked like zooming.
-- `splat.rs` — each bird adds optical depth `a = k_dark·(0.15 + 0.85·|up·d̂|)·fade(depth)`
+- `splat.rs` — each bird adds raw optical depth `a = (0.15 + 0.85·|up·d̂|)·fade(depth)`
   (Costanzo et al. 2022), splatted bilinearly when its disc is sub-pixel or as a
-  small Gaussian otherwise. `k_dark = 25` was chosen so a settled flock reads as
-  dense smoke rather than a scatter of dots.
+  small Gaussian otherwise. A second buffer accumulates `a · depth` for the
+  atmospheric fade. The overall exposure is applied by the compositor.
 - `dither.rs` — a 2 × 4 Bayer matrix turns opacity into braille dots; thin
   fringes break into individual dots.
 - `colour.rs` — a fixed, slightly warm near-black ink (`INK`) for the birds, and
@@ -205,7 +205,11 @@ The live view now renders the flock. Pipeline (`src/render/`):
   buffer and composites a frame. Each lit cell's *background* is tinted toward
   the ink by the cell's mean opacity (up to 60 %), so dense parts read as smoke;
   the dots are drawn in the ink and faded toward the sky only with atmospheric
-  distance, so silhouettes stay dark near the observer (reviews C1 and C2).
+  distance, so silhouettes stay dark near the observer (reviews C1 and C2). The
+  exposure adapts slowly (time constant 4 s) so the 80th percentile of the
+  flock's optical depth maps to ~70 % opacity, so a 300-bird group and a
+  5000-bird flock both read well; it is slow enough that the blackening of an
+  attack still shows (review C3).
 
 The live loop in `main.rs` advances the world in fixed 5 ms steps by wall-clock
 time, eases the camera, and draws. It runs the display phase only (no arc yet).
@@ -218,7 +222,7 @@ time, eases the camera, and draws. It runs the display phase only (no arc yet).
   valid on the machine that made it (run `cargo test -- --ignored` locally to
   check it). CI instead runs `frame_renders_a_flock`, a portable check that the
   frame contains plenty of braille and a reed silhouette.
-- `tests/perf.rs` (ignored by default) measures **69–72 fps** for 4000 birds at
+- `tests/perf.rs` (ignored by default) measures **58–59 fps** for 4000 birds at
   both 80 × 24 and 200 × 60 in release mode, well above the 30 fps target.
 - `settled_flock_covers_the_screen` (2000 birds, seed 0, four minutes, 120 × 36)
   checks the framing: the flock covers 20 % of the cells, above the 15 % target.

@@ -16,14 +16,12 @@ const WINGSPAN: f32 = 0.4;
 /// Falcon wingspan [m].
 const FALCON_WINGSPAN: f32 = 1.0;
 
-/// Overall darkness scale. Tuned so a settled flock reads as dense smoke.
-const K_DARK: f32 = 25.0;
-
 /// Distance over which a bird's contribution fades toward the sky [m].
 pub const ATMOSPHERE: f32 = 700.0;
 
-/// Adds each bird's opacity to `depth` and `opacity · distance` to `dist`
-/// (both length `pixel_w · pixel_h`).
+/// Adds each bird's raw opacity to `depth` and `opacity · distance` to `dist`
+/// (both length `pixel_w · pixel_h`). The exposure is applied by the compositor
+/// so it can adapt to the flock's density (review C3).
 pub fn splat(
     depth: &mut [f32],
     dist: &mut [f32],
@@ -47,9 +45,9 @@ pub fn splat(
         }
         let dhat = (camera.eye - world.position[i]).normalize_or_zero();
         let up = flight::body_up(flight::forward(world.velocity[i]), world.roll[i]);
-        let exposure = up.dot(dhat).abs();
+        let wing = up.dot(dhat).abs();
         let atmosphere = (1.0 - z / ATMOSPHERE).clamp(0.25, 1.0);
-        let a = K_DARK * (0.15 + 0.85 * exposure) * atmosphere;
+        let a = (0.15 + 0.85 * wing) * atmosphere;
 
         let rho = WINGSPAN * focal / z;
         if rho < 1.0 {
@@ -75,7 +73,7 @@ pub fn splat(
         && let Some((sx, sy, z)) = camera.project(falcon.position, pixel_w, pixel_h)
     {
         let atmosphere = (1.0 - z / ATMOSPHERE).clamp(0.25, 1.0);
-        let a = K_DARK * 1.6 * atmosphere;
+        let a = 1.6 * atmosphere;
         let rho = FALCON_WINGSPAN * focal / z;
         if rho < 1.0 {
             let v = a * rho * rho;

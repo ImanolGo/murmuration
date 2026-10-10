@@ -37,7 +37,7 @@ fn render_fps_4000_birds() {
             }
             camera.update(&world, 1.0 / 30.0, aspect);
             terminal
-                .draw(|f| renderer.draw(f, &world, &camera))
+                .draw(|f| renderer.draw(f, &world, &camera, 1.0 / 30.0))
                 .unwrap();
         }
         let elapsed = start.elapsed().as_secs_f64();

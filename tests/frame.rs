@@ -43,7 +43,7 @@ fn fixed_seed_frame() {
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     let mut renderer = Renderer::new(Depth::TrueColor);
     terminal
-        .draw(|frame| renderer.draw(frame, &world, &camera))
+        .draw(|frame| renderer.draw(frame, &world, &camera, 1.0 / 30.0))
         .unwrap();
 
     insta::assert_snapshot!(buffer_to_string(terminal.backend().buffer()));
@@ -65,7 +65,7 @@ fn frame_renders_a_flock() {
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     let mut renderer = Renderer::new(Depth::TrueColor);
     terminal
-        .draw(|frame| renderer.draw(frame, &world, &camera))
+        .draw(|frame| renderer.draw(frame, &world, &camera, 1.0 / 30.0))
         .unwrap();
 
     let buf = terminal.backend().buffer();
@@ -99,7 +99,7 @@ fn all_colour_depths_render() {
         let mut terminal = Terminal::new(TestBackend::new(40, 12)).unwrap();
         let mut renderer = Renderer::new(depth);
         terminal
-            .draw(|frame| renderer.draw(frame, &world, &camera))
+            .draw(|frame| renderer.draw(frame, &world, &camera, 1.0 / 30.0))
             .unwrap();
     }
 }
@@ -119,7 +119,7 @@ fn settled_flock_covers_the_screen() {
     let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
     let mut renderer = Renderer::new(Depth::TrueColor);
     terminal
-        .draw(|frame| renderer.draw(frame, &world, &camera))
+        .draw(|frame| renderer.draw(frame, &world, &camera, 1.0 / 30.0))
         .unwrap();
 
     let buf = terminal.backend().buffer();
@@ -158,7 +158,7 @@ fn cells_use_dark_ink_and_tint() {
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     let mut renderer = Renderer::new(Depth::TrueColor);
     terminal
-        .draw(|frame| renderer.draw(frame, &world, &camera))
+        .draw(|frame| renderer.draw(frame, &world, &camera, 1.0 / 30.0))
         .unwrap();
 
     let buf = terminal.backend().buffer();
@@ -199,4 +199,53 @@ fn channel_sum(c: Color) -> u32 {
         Color::Rgb(r, g, b) => u32::from(r) + u32::from(g) + u32::from(b),
         _ => 0,
     }
+}
+
+/// The exposure adapts so a small group and a large flock both read well
+/// (review C3).
+#[test]
+fn exposure_adapts_to_flock_size() {
+    let (w, h) = (120u16, 36u16);
+    let mut exposures = Vec::new();
+    for birds in [300usize, 5000] {
+        let mut world = World::new(birds, 7);
+        for _ in 0..(20.0 / DT) as usize {
+            world.step(DT);
+        }
+        let mut camera = Camera::new();
+        for _ in 0..300 {
+            camera.update(&world, 1.0 / 30.0, aspect(w, h));
+        }
+        let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
+        let mut renderer = Renderer::new(Depth::TrueColor);
+        // Let the exposure settle (time constant 4 s).
+        for _ in 0..180 {
+            terminal
+                .draw(|frame| renderer.draw(frame, &world, &camera, 1.0 / 30.0))
+                .unwrap();
+        }
+        exposures.push(renderer.exposure());
+        let buf = terminal.backend().buffer();
+        let mut lit = 0u32;
+        for y in 0..h {
+            for x in 0..w {
+                if let Some(c) = buf[(x, y)].symbol().chars().next() {
+                    let u = c as u32;
+                    if (0x2801..=0x28FF).contains(&u) {
+                        lit += 1;
+                    }
+                }
+            }
+        }
+        let coverage = lit as f32 / (w as f32 * h as f32);
+        assert!(
+            coverage >= 0.05,
+            "{birds} birds cover only {:.1}% after adaptation",
+            coverage * 100.0
+        );
+    }
+    assert!(
+        exposures[0] > exposures[1],
+        "the sparse flock should get a higher exposure: {exposures:?}"
+    );
 }
