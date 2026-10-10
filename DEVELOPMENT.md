@@ -152,10 +152,13 @@ grey. The numbers are recorded in the commit messages as the model is fixed.
   ratios within the hard limits, but still fragmented, 50% in the largest
   cluster). Accepted as a gap for now; the model mills over the roost as the
   paper's own does.
-- **Elongation.** The flock is frequently more elongated (inertia ratio `I2/I1`
-  of several tens) than the paper's 1.9–3.6. The oblong-school instability is
-  only partly destroyed by the turns in this implementation. This is a
-  report-only criterion; it is expected to be revisited in M3 (turns).
+- **Elongation.** The flock is still more elongated (`I2/I1` ≈ 6, `I3/I1` ≈ 190)
+  than the paper's 1.9–3.6 / 4–8.4, and above the review's hard limits of 10 and
+  20. The oblong-school instability is only partly destroyed by the turns in this
+  implementation, and the fixed orbit (above) shears the flock along its path, so
+  the flock projects as a long band rather than a compact blob. The camera (A5)
+  frames the band's height to 60 % of the screen, which meets the coverage target
+  but clips the ends.
 - **rayon.** Not used yet: decisions run single-threaded and are fast enough at
   these flock sizes.
 
@@ -174,11 +177,12 @@ implementation. The evening arc (M5) spawns arriving groups instead.
 
 The live view now renders the flock. Pipeline (`src/render/`):
 
-- `camera.rs` — a ground observer at 1.7 m, standing off from the roost so the
-  flock spans ~60 % of a 50° vertical field; look target and distance are eased
-  (time constants 2 s and 3 s). The stand-off uses the 90th percentile of
-  distances from the centroid, so a few stragglers in an elongated flock do not
-  push the camera so far that the bulk becomes tiny.
+- `camera.rs` — a ground observer at 1.7 m standing at a fixed spot 150 m from
+  the roost centre (the bearing is changed by `c`). The gaze eases toward the
+  flock (2 s) and the field of view eases (3 s) so the flock's projected 5–95 %
+  bounding box fills 60 % of the binding (smaller) screen dimension. This
+  replaced a stand-off that dollied back with the flock's 3D 90th-percentile
+  radius, which kept a wide flat flock small and looked like zooming.
 - `splat.rs` — each bird adds optical depth `a = k_dark·(0.15 + 0.85·|up·d̂|)·fade(depth)`
   (Costanzo et al. 2022), splatted bilinearly when its disc is sub-pixel or as a
   small Gaussian otherwise. `k_dark = 25` was chosen so a settled flock reads as
@@ -202,6 +206,9 @@ time, eases the camera, and draws. It runs the display phase only (no arc yet).
   frame contains plenty of braille and a reed silhouette.
 - `tests/perf.rs` (ignored by default) measures **69–72 fps** for 4000 birds at
   both 80 × 24 and 200 × 60 in release mode, well above the 30 fps target.
+- `settled_flock_covers_the_screen` (2000 birds, seed 0, four minutes, 120 × 36)
+  checks the framing: the flock covers 20 % of the cells, above the 15 % target.
+  With the old dolly camera it was 1 %.
 - A pseudo-terminal run confirms the live view enters the alternate screen,
   emits truecolor and braille, and restores the terminal on `q`.
 

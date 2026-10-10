@@ -21,6 +21,11 @@ fn buffer_to_string(buf: &Buffer) -> String {
     out
 }
 
+/// The pixel-grid aspect ratio of a `w`×`h` cell terminal.
+fn aspect(w: u16, h: u16) -> f32 {
+    (w as f32 * 2.0) / (h as f32 * 4.0)
+}
+
 #[test]
 #[ignore = "platform-dependent: libm differences flip dither dots; run on your own machine"]
 fn fixed_seed_frame() {
@@ -31,7 +36,7 @@ fn fixed_seed_frame() {
 
     let mut camera = Camera::new();
     for _ in 0..120 {
-        camera.update(&world, 1.0 / 30.0);
+        camera.update(&world, 1.0 / 30.0, aspect(80, 24));
     }
 
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
@@ -54,7 +59,7 @@ fn frame_renders_a_flock() {
     }
     let mut camera = Camera::new();
     for _ in 0..120 {
-        camera.update(&world, 1.0 / 30.0);
+        camera.update(&world, 1.0 / 30.0, aspect(80, 24));
     }
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     let mut renderer = Renderer::new(Depth::TrueColor);
@@ -77,11 +82,7 @@ fn frame_renders_a_flock() {
             }
         }
     }
-    // The flock is a 3D cloud now (the vertical roost force is capped), so it
-    // projects fewer, dimmer cells than the old 0.7 m sheet. The framing and
-    // exposure work in the review will raise this; for now the smoke test only
-    // guards that the flock is drawn at all.
-    assert!(braille > 20, "too few braille cells for a flock: {braille}");
+    assert!(braille > 40, "too few braille cells for a flock: {braille}");
     assert!(reeds > 50, "no reed silhouette: {reeds}");
 }
 
@@ -93,11 +94,49 @@ fn all_colour_depths_render() {
             world.step(murmuration::sim::params::DT);
         }
         let mut camera = Camera::new();
-        camera.update(&world, 1.0);
+        camera.update(&world, 1.0, aspect(40, 12));
         let mut terminal = Terminal::new(TestBackend::new(40, 12)).unwrap();
         let mut renderer = Renderer::new(depth);
         terminal
             .draw(|frame| renderer.draw(frame, &world, &camera))
             .unwrap();
     }
+}
+
+/// A settled flock fills a useful part of the screen (review A5, part D).
+#[test]
+fn settled_flock_covers_the_screen() {
+    let mut world = World::new(2000, 0);
+    for _ in 0..(240.0 / DT) as usize {
+        world.step(DT);
+    }
+    let (w, h) = (120u16, 36u16);
+    let mut camera = Camera::new();
+    for _ in 0..300 {
+        camera.update(&world, 1.0 / 30.0, aspect(w, h));
+    }
+    let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
+    let mut renderer = Renderer::new(Depth::TrueColor);
+    terminal
+        .draw(|frame| renderer.draw(frame, &world, &camera))
+        .unwrap();
+
+    let buf = terminal.backend().buffer();
+    let mut lit = 0u32;
+    for y in 0..h {
+        for x in 0..w {
+            if let Some(c) = buf[(x, y)].symbol().chars().next() {
+                let u = c as u32;
+                if (0x2801..=0x28FF).contains(&u) {
+                    lit += 1;
+                }
+            }
+        }
+    }
+    let coverage = lit as f32 / (w as f32 * h as f32);
+    assert!(
+        coverage >= 0.15,
+        "flock covers only {:.1}% of the screen",
+        coverage * 100.0
+    );
 }

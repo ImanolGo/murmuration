@@ -272,9 +272,10 @@ fn probe_neighbours_300m(seed: u64) -> f32 {
 
 /// Fraction of a `w`×`h` terminal lit by the settled flock (part D).
 fn probe_coverage(world: &World, w: u16, h: u16) -> f32 {
+    let aspect = (w as f32 * 2.0) / (h as f32 * 4.0);
     let mut camera = Camera::new();
     for _ in 0..300 {
-        camera.update(world, 1.0 / 30.0);
+        camera.update(world, 1.0 / 30.0, aspect);
     }
     let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
     let mut renderer = Renderer::new(Depth::TrueColor);
@@ -308,7 +309,9 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
     let mut ui_rng = ChaCha8Rng::seed_from_u64(seed ^ 0x5A_17);
     let mut camera = Camera::new();
     let mut renderer = Renderer::new(cli.colors.resolve());
-    camera.update(&world, 1.0);
+    let size = terminal.size()?;
+    let mut aspect = (size.width as f32 * 2.0) / (size.height as f32 * 4.0);
+    camera.update(&world, 1.0, aspect);
 
     // Terminate cleanly on SIGINT / SIGTERM / SIGHUP.
     let terminate = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -343,7 +346,9 @@ fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<
                 stepped = true;
             }
             if stepped {
-                camera.update(&world, dt);
+                let size = terminal.size()?;
+                aspect = (size.width as f32 * 2.0) / (size.height as f32 * 4.0);
+                camera.update(&world, dt, aspect);
             }
         }
 

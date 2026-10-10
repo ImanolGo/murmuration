@@ -22,7 +22,8 @@ fn render_fps_4000_birds() {
         let mut world = World::new(4000, 7);
         let mut camera = Camera::new();
         let mut renderer = Renderer::new(Depth::TrueColor);
-        camera.update(&world, 1.0);
+        let aspect = (w as f32 * 2.0) / (h as f32 * 4.0);
+        camera.update(&world, 1.0, aspect);
         let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
         for _ in 0..STEPS_PER_FRAME {
             world.step(DT);
@@ -34,7 +35,7 @@ fn render_fps_4000_birds() {
             for _ in 0..STEPS_PER_FRAME {
                 world.step(DT);
             }
-            camera.update(&world, 1.0 / 30.0);
+            camera.update(&world, 1.0 / 30.0, aspect);
             terminal
                 .draw(|f| renderer.draw(f, &world, &camera))
                 .unwrap();

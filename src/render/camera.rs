@@ -1,8 +1,11 @@
 //! A ground observer looking up at the flock.
 //!
-//! The eye sits at human height a slowly-eased horizontal distance from the
-//! roost, chosen so the flock fills about 60 % of the screen. It looks toward
-//! the flock centroid, smoothed over a couple of seconds.
+//! The observer stands still at a fixed spot on the ground, 150 m from the roost
+//! centre, and turns to face the flock. The field of view is eased so the
+//! flock's projected bounding box fills about 60 % of the binding screen
+//! dimension — what a real observer does with attention, and a zoom lens does
+//! for a camera. The flock is never kept small by a stand-off that grows with
+//! it.
 
 use glam::Vec3;
 
@@ -11,11 +14,18 @@ use crate::sim::World;
 /// Eye height of the observer [m].
 pub const EYE_HEIGHT: f32 = 1.7;
 
-/// Vertical field of view [rad].
+/// Horizontal distance of the observer from the roost centre [m].
+pub const EYE_DISTANCE: f32 = 150.0;
+
+/// Nominal vertical field of view [rad].
 pub const FOV_V: f32 = 50.0 * std::f32::consts::PI / 180.0;
 
-/// Fraction of the vertical field the flock should span.
+/// Fraction of the binding screen dimension the flock should span.
 const FILL: f32 = 0.6;
+
+/// Bounds on the eased field of view [rad].
+const FOV_MIN: f32 = 6.0 * std::f32::consts::PI / 180.0;
+const FOV_MAX: f32 = 100.0 * std::f32::consts::PI / 180.0;
 
 /// A perspective camera on the ground.
 pub struct Camera {
@@ -29,7 +39,8 @@ pub struct Camera {
     pub up: Vec3,
     /// Bearing around the roost [rad], changed by the `c` key.
     pub bearing: f32,
-    distance: f32,
+    /// Current vertical field of view [rad], eased toward the target.
+    pub fov: f32,
     smoothed_target: Vec3,
     ready: bool,
 }
@@ -44,19 +55,20 @@ impl Camera {
     /// A camera south of the roost looking north.
     pub fn new() -> Self {
         Self {
-            eye: Vec3::new(0.0, -200.0, EYE_HEIGHT),
+            eye: Vec3::new(0.0, -EYE_DISTANCE, EYE_HEIGHT),
             forward: Vec3::Y,
             right: Vec3::X,
             up: Vec3::Z,
             bearing: -std::f32::consts::FRAC_PI_2,
-            distance: 200.0,
+            fov: FOV_V,
             smoothed_target: Vec3::ZERO,
             ready: false,
         }
     }
 
-    /// Advances the camera by `dt` seconds to follow `world`.
-    pub fn update(&mut self, world: &World, dt: f32) {
+    /// Advances the camera by `dt` seconds to follow `world`. `aspect` is the
+    /// pixel grid's width divided by its height.
+    pub fn update(&mut self, world: &World, dt: f32, aspect: f32) {
         if world.is_empty() {
             return;
         }
@@ -69,32 +81,11 @@ impl Camera {
         // Smooth the look target (time constant ~2 s).
         self.smoothed_target += (centroid - self.smoothed_target) * (1.0 - (-dt / 2.0).exp());
 
-        // Characteristic radius of the flock, then the distance that makes it
-        // span FILL of the vertical field of view. Use the 90th percentile of
-        // distances so a few stragglers do not push the camera far away.
-        let mut distances: Vec<f32> = world
-            .position
-            .iter()
-            .map(|p| (*p - centroid).length())
-            .collect();
-        let index = ((distances.len() as f32 * 0.9) as usize).min(distances.len() - 1);
-        distances.select_nth_unstable_by(index, |a, b| {
-            a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
-        });
-        let radius = distances[index].max(1.0);
-        let target_distance = radius / (0.5 * FILL * FOV_V).tan();
-        let target_distance = target_distance.max(EYE_HEIGHT + 5.0);
-        self.distance += (target_distance - self.distance) * (1.0 - (-dt / 3.0).exp());
-        self.distance = self.distance.max(EYE_HEIGHT + 5.0);
-
-        // Horizontal stand-off that puts the eye `distance` from the target.
-        let height = self.smoothed_target.z - EYE_HEIGHT;
-        let horizontal = (self.distance * self.distance - height * height)
-            .max(1.0)
-            .sqrt();
+        // A fixed spot on the ground, chosen by bearing. The observer does not
+        // dolly back and forth as the flock changes size.
         self.eye = Vec3::new(
-            horizontal * self.bearing.cos(),
-            horizontal * self.bearing.sin(),
+            EYE_DISTANCE * self.bearing.cos(),
+            EYE_DISTANCE * self.bearing.sin(),
             EYE_HEIGHT,
         );
 
@@ -109,11 +100,47 @@ impl Camera {
         }
         self.right = right.normalize();
         self.up = self.right.cross(self.forward);
+
+        // Required vertical field of view so the flock's projected 5–95 %
+        // bounding box fills `FILL` of the binding (smaller) screen dimension.
+        // Work in normalised device coordinates (focal length 1), where the
+        // screen half-height is `tan(fov/2)` and the half-width is `aspect`
+        // times that.
+        let mut xs = Vec::with_capacity(world.len());
+        let mut ys = Vec::with_capacity(world.len());
+        for p in &world.position {
+            let rel = *p - self.eye;
+            let depth = rel.dot(self.forward);
+            if depth <= 1.0 {
+                continue;
+            }
+            xs.push(rel.dot(self.right) / depth);
+            ys.push(rel.dot(self.up) / depth);
+        }
+        let target_fov = if xs.is_empty() {
+            self.fov
+        } else {
+            let (x0, x1) = percentiles(&mut xs);
+            let (y0, y1) = percentiles(&mut ys);
+            let x_extent = x0.abs().max(x1.abs());
+            let y_extent = y0.abs().max(y1.abs());
+            // Fill `FILL` of the binding (smaller) screen dimension.
+            let t = if aspect >= 1.0 {
+                y_extent / FILL
+            } else {
+                x_extent / (aspect * FILL)
+            };
+            2.0 * t.atan()
+        };
+        let target_fov = target_fov.clamp(FOV_MIN, FOV_MAX);
+        // Ease the zoom (time constant ~3 s).
+        self.fov += (target_fov - self.fov) * (1.0 - (-dt / 3.0).exp());
+        self.fov = self.fov.clamp(FOV_MIN, FOV_MAX);
     }
 
     /// Focal length in pixels for a pixel grid `pixel_h` dots tall.
     pub fn focal_px(&self, pixel_h: usize) -> f32 {
-        (pixel_h as f32 / 2.0) / (FOV_V / 2.0).tan()
+        (pixel_h as f32 / 2.0) / (self.fov / 2.0).tan()
     }
 
     /// Projects `p` to pixel coordinates `(x, y, depth)`, or `None` if it is
@@ -156,4 +183,12 @@ impl Camera {
         let t = (plane_point - self.eye).dot(normal) / denom;
         self.eye + dir * t
     }
+}
+
+/// The 5th and 95th percentiles of `v`, sorted in place.
+fn percentiles(v: &mut [f32]) -> (f32, f32) {
+    v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let lo = ((v.len() as f32 * 0.05) as usize).min(v.len() - 1);
+    let hi = ((v.len() as f32 * 0.95) as usize).min(v.len() - 1);
+    (v[lo], v[hi])
 }
