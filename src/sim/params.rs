@@ -92,10 +92,10 @@ pub const W_XI: f32 = 0.01;
 pub const R_ROOST: f32 = 150.0;
 
 /// Weighting factor for the horizontal roost force [N/m]. Table 1 lists
-/// 0.01 N/m; that is ~100× weaker than the social lateral forces, so the
-/// banking stays saturated by neighbour noise and the flock never turns at the
-/// roost boundary — it elongates and the adaptive radius diverges. Raised to
-/// 1.0 N/m so the flock is actually held over the roost.
+/// 0.01 N/m. Eq. 11 is a lateral force that grows with the distance beyond
+/// `R_ROOST`; the stronger 1.0 N/m value is kept for now because the neighbour
+/// noise from the alignment rule (A3) still saturates the bank. Once A2 and A3
+/// are fixed this should return to the Table 1 value.
 pub const W_ROOST_H: f32 = 1.0;
 
 /// Weighting factor for the vertical roost force [N/m]. Table 1.

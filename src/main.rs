@@ -3,11 +3,15 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, MouseEventKind};
+use glam::Vec3;
+use murmuration::render::colour::{self, Depth};
 use murmuration::render::{Camera, Renderer};
-use murmuration::sim::params::DT;
-use murmuration::sim::{World, analysis};
-use rand::SeedableRng;
+use murmuration::sim::params::{DT, V0, Z0, ZIGZAG_K};
+use murmuration::sim::{World, analysis, escape};
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
 use ratatui::style::Color;
 
@@ -26,6 +30,10 @@ struct Cli {
     /// Run the agitation-wave experiment (falcon attack) headless and exit.
     #[arg(long)]
     agitation: bool,
+    /// Run the part-D probe (2000 birds, seed 0, four minutes) and print the
+    /// metrics that catch the "looks wrong" failures, then exit.
+    #[arg(long)]
+    probe: bool,
     /// Copying threshold k for the zigzag wave (1–7).
     #[arg(long, default_value_t = 2)]
     zigzag_k: u32,
@@ -78,6 +86,10 @@ fn main() -> Result<()> {
     }
     if cli.agitation {
         agitation(cli.birds, seed, cli.zigzag_k);
+        return Ok(());
+    }
+    if cli.probe {
+        probe(cli.birds, seed);
         return Ok(());
     }
 
@@ -148,6 +160,140 @@ fn agitation(birds: usize, seed: u64, k: u32) {
         r.peak_alarmed * 100.0,
         r.peak_expansion * 100.0,
     );
+}
+
+/// The part-D probe: the measurements that catch the "looks wrong" failures.
+///
+/// Runs a 4-minute flock (2000 birds, seed 0), a rendered 120×36 frame, the
+/// 300 m neighbour group, the agitation wave and the 256-colour dark grey.
+fn probe(birds: usize, seed: u64) {
+    let seconds = 240.0f32;
+    let per_second = (1.0 / DT).round() as usize;
+    let steps = (seconds / DT) as usize;
+
+    let mut world = World::new(birds, seed);
+    let mut tang = 0.0f64;
+    let mut roll = 0.0f64;
+    let mut clamp = 0.0f32;
+    let mut height = 0.0f64;
+    let mut samples = 0u32;
+    let mut crossings = 0u32;
+    let mut last_cross = 0.0f32;
+    let mut max_gap = 0.0f32;
+    let mut stats = analysis::compute(&world);
+
+    for s in 1..=steps {
+        world.step(DT);
+        if s % per_second == 0 {
+            stats = analysis::compute(&world);
+            tang += stats.tangential as f64;
+            roll += stats.mean_roll as f64;
+            clamp = clamp.max(stats.clamp_fraction);
+            height += stats.height_std as f64;
+            samples += 1;
+            if stats.centroid_radius < 60.0 {
+                crossings += 1;
+                max_gap = max_gap.max(world.time - last_cross);
+                last_cross = world.time;
+            }
+        }
+    }
+    max_gap = max_gap.max(seconds - last_cross);
+    let n = samples.max(1) as f64;
+
+    println!("# murmuration --probe birds={birds} seed={seed} seconds={seconds}");
+    println!(
+        "rotation:    mean signed tangential {:6.2} m/s  (target |.| < 0.5)",
+        tang / n
+    );
+    println!(
+        "crossings:   {crossings} within 60 m; longest gap {max_gap:5.0} s  (target <= 120 s)"
+    );
+    println!(
+        "bank:        clamp {:5.1}%  (target < 2%), mean |beta| {:4.1} deg  (target < 15)",
+        clamp * 100.0,
+        (roll / n).to_degrees()
+    );
+    println!(
+        "thickness:   height std {:5.2} m  (target >= 2)",
+        height / n
+    );
+    println!(
+        "shape:       I2/I1 {:5.1}, I3/I1 {:5.1}",
+        stats.i2_i1, stats.i3_i1
+    );
+    println!(
+        "neighbours:  300 m group after 1 s {:5.1}  (target 3-10)",
+        probe_neighbours_300m(seed)
+    );
+    println!(
+        "coverage:    120x36 rendered {:5.1}%  (target >= 15%)",
+        probe_coverage(&world, 120, 36) * 100.0
+    );
+    let wave = escape::measure_agitation(&mut World::new(birds, seed), 4.0);
+    println!(
+        "agitation:   k={ZIGZAG_K} speed {:5.1} m/s  (target 3-25)",
+        wave.speed
+    );
+    println!(
+        "256-colour:  [20,20,20] -> {:5}  (target 233/234)",
+        match colour::convert([20, 20, 20], Depth::Ansi256) {
+            Color::Indexed(i) => i.to_string(),
+            other => format!("{other:?}"),
+        }
+    );
+}
+
+/// Mean neighbours of a group spawned 300 m out, one second later (B1).
+fn probe_neighbours_300m(seed: u64) -> f32 {
+    let mut world = World::new(0, seed);
+    let mut rng = ChaCha8Rng::seed_from_u64(seed ^ 0x300);
+    let base = Vec3::new(300.0, 0.0, Z0);
+    for _ in 0..50 {
+        let pos = base
+            + Vec3::new(
+                rng.random_range(-15.0..15.0),
+                rng.random_range(-15.0..15.0),
+                rng.random_range(-5.0..5.0),
+            );
+        let toward = Vec3::new(-1.0, 0.0, 0.0)
+            + Vec3::new(
+                rng.random_range(-0.1..0.1),
+                rng.random_range(-0.1..0.1),
+                rng.random_range(-0.1..0.1),
+            );
+        world.push_bird(pos, toward.normalize() * V0, &mut rng);
+    }
+    for _ in 0..(1.0 / DT) as usize {
+        world.step(DT);
+    }
+    analysis::compute(&world).mean_neighbours
+}
+
+/// Fraction of a `w`×`h` terminal lit by the settled flock (part D).
+fn probe_coverage(world: &World, w: u16, h: u16) -> f32 {
+    let mut camera = Camera::new();
+    for _ in 0..300 {
+        camera.update(world, 1.0 / 30.0);
+    }
+    let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
+    let mut renderer = Renderer::new(Depth::TrueColor);
+    terminal
+        .draw(|frame| renderer.draw(frame, world, &camera))
+        .unwrap();
+    let buf = terminal.backend().buffer();
+    let mut lit = 0u32;
+    for y in 0..h {
+        for x in 0..w {
+            if let Some(c) = buf[(x, y)].symbol().chars().next() {
+                let u = c as u32;
+                if (0x2801..=0x28FF).contains(&u) {
+                    lit += 1;
+                }
+            }
+        }
+    }
+    lit as f32 / (w as f32 * h as f32)
 }
 
 fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<()> {

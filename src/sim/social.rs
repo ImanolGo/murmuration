@@ -126,12 +126,18 @@ pub fn decide(
         force += a.normalize() * W_ALIGN;
     }
 
-    // Horizontal roost pull: tangential when outside the boundary (Eq. 11).
+    // Horizontal roost pull (Eq. 11): a lateral steering force, stronger when
+    // heading outward, that turns the bird back toward the roost. `w_RoostH` is
+    // in N/m, so the force grows with the distance beyond the boundary. The
+    // lateral direction is the one whose component points inward.
     let horiz = Vec3::new(p.x, p.y, 0.0);
     let dist_h = horiz.length();
     if dist_h > R_ROOST {
         let n = horiz / dist_h;
-        force += side_of(f_i) * (W_ROOST_H * (0.5 + 0.5 * f_i.dot(n)));
+        let side = side_of(f_i);
+        let inward_side = side * side.dot(-n);
+        let outward = 0.5 + 0.5 * f_i.dot(n);
+        force += inward_side * (W_ROOST_H * (dist_h - R_ROOST) * outward);
     }
 
     // Vertical roost pull toward the preferred height (Eq. 12). This is what

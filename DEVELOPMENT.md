@@ -71,13 +71,19 @@ behaviour the same paper reports, so a correction was made and is documented.
   settling at 6.5. Replaced with a stable geometric relaxation toward
   `|Ni| = n_c`, `R ← R·(n_c/|Ni|)^(s/3)` (the cube root because `|N| ∝ R³`).
   See `params::radius_step`.
-- **Horizontal roost force (Eq. 11).** Table 1 gives `w_RoostH = 0.01 N/m`,
-  ~100× weaker than the social lateral forces. Because the bank angle reacts to
-  the *total* lateral steering force (Eq. 18), the social forces saturate the
-  bank with neighbour noise, the flock never turns at the roost boundary, it
-  elongates into a filament and the adaptive radius diverges (`|Ni|` into the
-  hundreds). Raised to 1.0 N/m, which holds a sheet-like milling flock inside
-  `R_roost`.
+- **Horizontal roost force (Eq. 11).** Two problems. First, the printed equation
+  multiplies `w_RoostH` (N/m) by a unit lateral vector, so it does not have the
+  units of a force; the units say the force should grow with the distance beyond
+  `R_roost`. Second, the lateral direction was fixed to the bird's right-hand
+  side, so every bird crossing the boundary banked the same way and the whole
+  flock milled clockwise along the boundary. The force is now scaled by
+  `dist_h − R_roost` and the lateral direction is chosen to point inward
+  (`sign = −(side·n)`). The weight stays at the raised 1.0 N/m for now, because
+  the alignment rule still injects a full-strength random kick that saturates
+  the bank; once the banking model is corrected it should return to Table 1's
+  0.01 N/m. Measured with `--probe` after this fix alone, the flock still mills
+  (mean signed tangential velocity 10.4 m/s, no roost crossing in four
+  minutes): the crossing needs the banking fix below.
 - **Separation and alignment weights.** Raised from Table 1's 1.0 N and 0.5 N to
   1.7 N and 1.0 N, to put the nearest-neighbour distance in the 0.7–1.5 m band
   and keep the flock coherent. The paper tunes these parameters too; the
@@ -96,6 +102,16 @@ behaviour the same paper reports, so a correction was made and is documented.
   the small root; with the fix, flatness is consistently 1.00 for a flat flock.
 - **Speed control.** Eq. 14's speed-relaxation term `f_τ` (Eq. 1) was initially
   omitted; adding it is needed for the flock to hold cruise speed.
+
+### Part-D probe
+
+`--probe` (2000 birds, seed 0, four simulated minutes, plus a rendered 120×36
+frame) prints the measurements that catch a flock that has collapsed into a
+ribbon: mean signed tangential velocity about the roost, crossings of the roost
+centre, fraction of birds at the bank clamp, mean bank angle, height standard
+deviation, the inertia ratios, the neighbour count of a group spawned 300 m out,
+rendered coverage, the agitation-wave speed and the 256-colour mapping of a dark
+grey. The numbers are recorded in the commit messages as the model is fixed.
 
 ### Known gaps (reported, not faked)
 

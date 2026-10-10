@@ -5,7 +5,7 @@ use glam::Vec3;
 use super::World;
 use super::flight::forward;
 use super::neighbours::Grid;
-use super::params::GRID_CELL;
+use super::params::{GRID_CELL, MAX_BANK};
 
 /// Centrality below which a bird counts as interior, from Table 1 (`C_c`).
 pub const CENTRALITY_INTERIOR: f32 = 0.35;
@@ -46,13 +46,23 @@ pub struct Stats {
     pub alarmed_fraction: f32,
     /// Mean absolute bank angle [rad].
     pub mean_roll: f32,
+    /// Fraction of birds pinned at the ±`MAX_BANK` clamp.
+    pub clamp_fraction: f32,
+    /// Mean signed tangential velocity about the roost centre [m/s]; positive
+    /// is counter-clockwise seen from above. A persistent sign means the flock
+    /// is milling around the boundary instead of crossing the roost.
+    pub tangential: f32,
+    /// Standard deviation of bird height [m].
+    pub height_std: f32,
+    /// Horizontal distance of the flock centroid from the roost centre [m].
+    pub centroid_radius: f32,
 }
 
 impl Stats {
     /// A one-line human-readable summary.
     pub fn line(&self) -> String {
         format!(
-            "birds={:5} |N|={:4.2} R={:5.2}m cluster={:5.1}% NND={:4.2}m spread={:5.1}m Rh={:5.1}m dz={:4.1}m I2/I1={:4.2} I3/I1={:4.2} flat={:4.2} nn_ab={:4.2} v={:4.1}m/s alarm={:4.1}% roll={:4.2}",
+            "birds={:5} |N|={:4.2} R={:5.2}m cluster={:5.1}% NND={:4.2}m spread={:5.1}m Rh={:5.1}m dz={:4.1}m I2/I1={:4.2} I3/I1={:4.2} flat={:4.2} nn_ab={:4.2} v={:4.1}m/s alarm={:4.1}% roll={:4.2} clamp={:4.1}% tang={:5.2}m/s hstd={:4.1}m rc={:5.1}m",
             self.birds,
             self.mean_neighbours,
             self.mean_radius,
@@ -68,6 +78,10 @@ impl Stats {
             self.mean_speed,
             self.alarmed_fraction * 100.0,
             self.mean_roll,
+            self.clamp_fraction * 100.0,
+            self.tangential,
+            self.height_std,
+            self.centroid_radius,
         )
     }
 }
@@ -94,6 +108,38 @@ pub fn compute(world: &World) -> Stats {
         0.0
     };
     let mean_roll = mean(world.roll.iter().map(|r| r.abs()));
+    let clamp_fraction = if n > 0 {
+        world
+            .roll
+            .iter()
+            .filter(|r| r.abs() >= MAX_BANK - 1e-3)
+            .count() as f32
+            / n as f32
+    } else {
+        0.0
+    };
+    let mean_height = mean(pos.iter().map(|p| p.z));
+    let height_std = mean(pos.iter().map(|p| (p.z - mean_height).powi(2)))
+        .max(0.0)
+        .sqrt();
+    let centroid_radius = (centroid.x * centroid.x + centroid.y * centroid.y).sqrt();
+    // Signed tangential velocity about the roost centre: positive is
+    // counter-clockwise seen from above.
+    let mut tangential_sum = 0.0;
+    let mut tangential_count = 0u32;
+    for (p, v) in pos.iter().zip(&world.velocity) {
+        let r = Vec3::new(p.x, p.y, 0.0);
+        let d = r.length();
+        if d > 1e-3 {
+            tangential_sum += v.dot(Vec3::Z.cross(r / d));
+            tangential_count += 1;
+        }
+    }
+    let tangential = if tangential_count > 0 {
+        tangential_sum / tangential_count as f32
+    } else {
+        0.0
+    };
     let max_radius_h = pos
         .iter()
         .map(|p| (p.x * p.x + p.y * p.y).sqrt())
@@ -153,6 +199,10 @@ pub fn compute(world: &World) -> Stats {
         mean_dz,
         alarmed_fraction,
         mean_roll,
+        clamp_fraction,
+        tangential,
+        height_std,
+        centroid_radius,
     }
 }
 
