@@ -90,8 +90,9 @@ fn nearest_256(rgb: [u8; 3]) -> u8 {
     let cube_index = (16 + 36 * qr + 6 * qg + qb) as u8;
 
     let gray = (r + g + b) / 3;
-    let gray_level = ((gray - 8).clamp(0, 23) * 10 + 8).clamp(8, 238);
-    let gray_index = (232 + ((gray - 8).clamp(0, 23))) as u8;
+    let gray_step = ((gray - 8) / 10).clamp(0, 23);
+    let gray_level = gray_step * 10 + 8;
+    let gray_index = (232 + gray_step) as u8;
 
     let d2 = |a: [i32; 3], c: [i32; 3]| {
         let dr = a[0] - c[0];
@@ -114,6 +115,18 @@ mod tests {
     fn black_and_white_map_sensibly() {
         assert_eq!(nearest_256([0, 0, 0]), 16);
         assert_eq!(nearest_256([255, 255, 255]), 231);
+    }
+
+    #[test]
+    fn dark_greys_stay_dark() {
+        // The grey ramp is 232 + (level - 8)/10, so a dark grey must not jump to
+        // the bright end (review B6).
+        assert!(
+            matches!(nearest_256([20, 20, 20]), 233 | 234),
+            "dark grey mapped to {}",
+            nearest_256([20, 20, 20])
+        );
+        assert_eq!(nearest_256([30, 30, 30]), 234);
     }
 
     #[test]

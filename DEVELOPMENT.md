@@ -361,6 +361,12 @@ No plan-vs-paper conflicts in M5.
 - **Colour.** `--colors auto|truecolor|ansi256|none`; auto honours `NO_COLOR`
   and `COLORTERM` (truecolor/24bit), otherwise the nearest of the 256 xterm
   colours, otherwise plain braille on the terminal default.
+- **256-colour dark greys (review B6).** `nearest_256` built the grey *level*
+  from `(gray - 8)` but the grey *index* from the same un-divided value, so a
+  dark grey mapped to the bright end of the ramp (value 20 became near-white;
+  macOS Terminal.app does not set `COLORTERM`, so it uses this fallback). The
+  index is now `232 + (gray - 8) / 10` with the matching level; `[20, 20, 20]`
+  maps to 233 and dark birds stay dark.
 - **Signals.** `SIGINT`/`SIGTERM`/`SIGHUP` set a flag through `signal-hook`, and
   the loop returns normally so the terminal is restored.
 - **`--screensaver`.** Any key press or mouse movement exits.
