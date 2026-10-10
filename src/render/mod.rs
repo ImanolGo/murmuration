@@ -40,26 +40,27 @@ impl Renderer {
         }
         let pixel_w = area.width as usize * 2;
         let pixel_h = area.height as usize * 4;
+        let evening = world.evening();
 
-        // Background: sky gradient and reeds.
-        sky::draw(frame);
+        // Background: sky gradient, stars and reeds.
+        sky::draw(frame, evening, world.time);
 
         // Optical depth of the birds.
         self.depth.clear();
         self.depth.resize(pixel_w * pixel_h, 0.0);
         splat::splat(&mut self.depth, pixel_w, pixel_h, world, camera);
 
-        composite(frame, &self.depth, pixel_w);
+        composite(frame, &self.depth, pixel_w, evening);
     }
 }
 
 /// Turns the optical-depth buffer into braille dots and colours the cells.
-fn composite(frame: &mut Frame, depth: &[f32], pixel_w: usize) {
+fn composite(frame: &mut Frame, depth: &[f32], pixel_w: usize, evening: f32) {
     let area = frame.area();
     let buf = frame.buffer_mut();
     for row in 0..area.height {
         let t = row as f32 / area.height.saturating_sub(1).max(1) as f32;
-        let sky_col = sky::dusk_colour(t);
+        let sky_col = sky::sky_colour(t, evening);
         for col in 0..area.width {
             let mut bits = 0u32;
             let mut sum = 0.0f32;

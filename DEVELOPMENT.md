@@ -15,6 +15,7 @@ itself internally inconsistent, the deviation and the reason are recorded here.
 | M2 First light | done |
 | M3 Turns | measurement done; linear wave not emerging (see below) |
 | M4 Falcon | mechanics done; agitation wave propagates but is faster than the literature range (see below) |
+| M5 The evening | done |
 
 Build and checks (must be green before every commit):
 
@@ -241,3 +242,32 @@ which would change the M1 density. No rule was added to slow the wave by hand.
 
 `f` releases the falcon; moving the mouse makes you the falcon (mouse mode sets
 the falcon's target to the point under the cursor).
+
+## M5 — the evening
+
+`sim/arc.rs` runs one evening of `--arc-minutes` (default 15), then loops:
+
+1. **Arrival** (~15 %): groups of 50–300 birds spawn at random bearings
+   250–350 m out and fly toward the roost; `z0` reset to its base.
+2. **Display** (to ~70 %): the flock mills over the reeds.
+3. **Roosting** (to ~90 %): `z0` lowers steadily to the reed tops, so the flock
+   pours down, and any bird below the reeds near the roost is removed (landed).
+4. **Night**: stars come out; the flock is cleared, then the next evening begins.
+
+The sky (`render/sky.rs`) blends a bright arrival palette → dusk → a near-black
+night palette, adds stars after 75 % of the evening, and sways the reed
+silhouette with time. `--no-arc` holds the display phase at dusk.
+
+Remaining keys: `Space` pauses, `+`/`-` add/remove birds (and change the arc's
+target), `c` moves the camera to a new bearing, `s` saves the current frame as
+ANSI truecolour text (`murmuration-frame-<t>s.ansi`).
+
+### Validation
+
+- `tests/m5.rs`: a short (6 s) evening reaches Arrival, Display, Roosting and
+  Night in turn, birds arrive during Arrival, and across three loops the flock
+  never exceeds the target size — memory does not grow.
+- A pseudo-terminal run of a 0.1-minute evening renders the flock, the `s` key
+  writes the ANSI frame, and `q` restores the terminal.
+
+No plan-vs-paper conflicts in M5.

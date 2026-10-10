@@ -6,6 +6,10 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind, MouseEventKind};
 use murmuration::render::{Camera, Renderer};
 use murmuration::sim::params::DT;
 use murmuration::sim::{World, analysis};
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
+use ratatui::buffer::Buffer;
+use ratatui::style::Color;
 
 /// Starlings at dusk, in your terminal.
 #[derive(Debug, Parser)]
@@ -28,6 +32,18 @@ struct Cli {
     /// A falcon hunts from the start.
     #[arg(long)]
     falcon: bool,
+    /// Hold the display phase (no evening arc).
+    #[arg(long)]
+    no_arc: bool,
+    /// Length of one evening, in minutes.
+    #[arg(long, default_value_t = 15.0)]
+    arc_minutes: f32,
+    /// Number of birds.
+    #[arg(long, default_value_t = 2000)]
+    birds: usize,
+    /// Random seed for the evening.
+    #[arg(long)]
+    seed: Option<u64>,
     /// Forced-turn experiment: birds disturbed.
     #[arg(long, default_value_t = 100)]
     turn_side: usize,
@@ -40,12 +56,6 @@ struct Cli {
     /// Forced-turn experiment: minimum local heading change to include a bird [rad].
     #[arg(long, default_value_t = 0.3)]
     turn_min: f32,
-    /// Number of birds.
-    #[arg(long, default_value_t = 2000)]
-    birds: usize,
-    /// Random seed for the evening.
-    #[arg(long)]
-    seed: Option<u64>,
 }
 
 fn main() -> Result<()> {
@@ -66,7 +76,7 @@ fn main() -> Result<()> {
     }
 
     let mut terminal = ratatui::init();
-    let result = run(&mut terminal, cli.birds, seed, &cli);
+    let result = run(&mut terminal, seed, &cli);
     ratatui::restore();
     result
 }
@@ -92,7 +102,6 @@ fn analyze(seconds: f32, birds: usize, seed: u64, with_falcon: bool) {
 
 fn turns(birds: usize, seed: u64, cli: &Cli) {
     let mut world = World::new(birds, seed);
-    // Settle the flock before disturbing it.
     for _ in 0..(20.0 / DT) as usize {
         world.step(DT);
     }
@@ -117,64 +126,85 @@ fn turns(birds: usize, seed: u64, cli: &Cli) {
         r.time_span,
         r.distance_span,
     );
-    let d_max = r.points.iter().map(|p| p.0).fold(0.0f32, f32::max);
-    let bins = 6usize;
-    let mut sum = vec![0.0f32; bins];
-    let mut count = vec![0usize; bins];
-    for (d, t) in &r.points {
-        let b = (((d / d_max.max(1e-6)) * bins as f32) as usize).min(bins - 1);
-        sum[b] += t;
-        count[b] += 1;
-    }
-    let mut line = String::new();
-    for b in 0..bins {
-        if count[b] > 0 {
-            line += &format!(
-                "{:.0}m:{:.2}s({}) ",
-                (b as f32 + 0.5) / bins as f32 * d_max,
-                sum[b] / count[b] as f32,
-                count[b]
-            );
-        }
-    }
-    println!("binned distance:mean arrival  {line}");
 }
 
-fn run(terminal: &mut ratatui::DefaultTerminal, birds: usize, seed: u64, cli: &Cli) -> Result<()> {
+fn agitation(birds: usize, seed: u64, k: u32) {
     let mut world = World::new(birds, seed);
+    world.zigzag_k = k;
+    let r = murmuration::sim::escape::measure_agitation(&mut world, 4.0);
+    println!("# murmuration --agitation birds={birds} seed={seed} k={k}");
+    println!(
+        "wave speed = {:.2} m/s, R2 = {:.3}, samples = {}, reached = {:.0}%, \
+         expansion = {:.0}%",
+        r.speed,
+        r.r2,
+        r.samples,
+        r.peak_alarmed * 100.0,
+        r.peak_expansion * 100.0,
+    );
+}
+
+fn run(terminal: &mut ratatui::DefaultTerminal, seed: u64, cli: &Cli) -> Result<()> {
+    let mut world = World::new(cli.birds, seed);
     world.zigzag_k = cli.zigzag_k;
+    if !cli.no_arc {
+        world.enable_arc(cli.arc_minutes);
+    }
     if cli.falcon {
         world.spawn_falcon();
     }
+    let mut ui_rng = ChaCha8Rng::seed_from_u64(seed ^ 0x5A_17);
     let mut camera = Camera::new();
     let mut renderer = Renderer::new();
     camera.update(&world, 1.0);
 
+    let mut paused = false;
+    let mut save_requested = false;
     let mut accumulator = 0.0f32;
     let mut last = Instant::now();
+
     loop {
         let now = Instant::now();
         let dt = (now - last).as_secs_f32().min(0.25);
         last = now;
 
-        accumulator += dt;
-        let mut stepped = false;
-        while accumulator >= DT {
-            world.step(DT);
-            accumulator -= DT;
-            stepped = true;
-        }
-        if stepped {
-            camera.update(&world, dt);
+        if !paused {
+            accumulator += dt;
+            let mut stepped = false;
+            while accumulator >= DT {
+                world.step(DT);
+                accumulator -= DT;
+                stepped = true;
+            }
+            if stepped {
+                camera.update(&world, dt);
+            }
         }
 
-        terminal.draw(|frame| renderer.draw(frame, &world, &camera))?;
+        let completed = terminal.draw(|frame| renderer.draw(frame, &world, &camera))?;
+        if save_requested {
+            save_requested = false;
+            let path = format!("murmuration-frame-{:.1}s.ansi", world.time);
+            std::fs::write(&path, frame_to_ansi(completed.buffer))?;
+            println!("saved {path}");
+        }
 
         if event::poll(Duration::from_millis(16))? {
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                     KeyCode::Char('f') => world.spawn_falcon(),
+                    KeyCode::Char(' ') => paused = !paused,
+                    KeyCode::Char('s') => save_requested = true,
+                    KeyCode::Char('c') => camera.bearing += 0.9,
+                    KeyCode::Char('+') | KeyCode::Char('=') => {
+                        world.target_birds += 250;
+                        world.add_birds(250, &mut ui_rng);
+                    }
+                    KeyCode::Char('-') => {
+                        world.target_birds = world.target_birds.saturating_sub(250);
+                        world.remove_birds(250);
+                    }
                     _ => {}
                 },
                 Event::Mouse(mouse)
@@ -208,18 +238,24 @@ fn flock_centroid(world: &World) -> glam::Vec3 {
     }
 }
 
-fn agitation(birds: usize, seed: u64, k: u32) {
-    let mut world = World::new(birds, seed);
-    world.zigzag_k = k;
-    let r = murmuration::sim::escape::measure_agitation(&mut world, 4.0);
-    println!("# murmuration --agitation birds={birds} seed={seed} k={k}");
-    println!(
-        "wave speed = {:.2} m/s, R2 = {:.3}, samples = {}, peak alarmed = {:.0}%, \
-         peak expansion = {:.0}%",
-        r.speed,
-        r.r2,
-        r.samples,
-        r.peak_alarmed * 100.0,
-        r.peak_expansion * 100.0,
-    );
+/// Serialises a buffer to text with ANSI truecolour escape codes.
+fn frame_to_ansi(buf: &Buffer) -> String {
+    let area = buf.area();
+    let mut out = String::new();
+    for y in 0..area.height {
+        for x in 0..area.width {
+            let cell = &buf[(x, y)];
+            match (cell.fg, cell.bg) {
+                (Color::Rgb(fr, fg, fb), Color::Rgb(br, bg, bb)) => {
+                    out.push_str(&format!(
+                        "\x1b[38;2;{fr};{fg};{fb}m\x1b[48;2;{br};{bg};{bb}m"
+                    ));
+                }
+                _ => out.push_str("\x1b[0m"),
+            }
+            out.push_str(cell.symbol());
+        }
+        out.push_str("\x1b[0m\n");
+    }
+    out
 }

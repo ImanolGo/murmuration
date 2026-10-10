@@ -4,6 +4,7 @@
 //! integration steps. It knows nothing about the terminal.
 
 pub mod analysis;
+pub mod arc;
 pub mod escape;
 pub mod falcon;
 pub mod flight;
@@ -16,6 +17,7 @@ use glam::Vec3;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
+use arc::Arc;
 use escape::EscapeState;
 use falcon::Falcon;
 use neighbours::Grid;
@@ -49,6 +51,10 @@ pub struct World {
     pub falcon: Option<Falcon>,
     /// Number of neighbours whose zigzag starts a copy (1–7).
     pub zigzag_k: u32,
+    /// The evening arc, if one is running.
+    pub arc: Option<Arc>,
+    /// Target flock size the arc aims for during arrival.
+    pub target_birds: usize,
     /// Per-bird random streams, so decisions are order-independent.
     rngs: Vec<ChaCha8Rng>,
     grid: Grid,
@@ -99,9 +105,109 @@ impl World {
             escape: vec![EscapeState::default(); n],
             falcon: None,
             zigzag_k: ZIGZAG_K,
+            arc: None,
+            target_birds: n,
             rngs,
             grid,
             seed,
+        }
+    }
+
+    /// Starts a new evening of `minutes` minutes, from an empty sky.
+    pub fn enable_arc(&mut self, minutes: f32) {
+        self.clear();
+        self.arc = Some(Arc::new(minutes, self.seed));
+    }
+
+    /// Adds one bird with the given position and velocity.
+    pub fn push_bird(&mut self, pos: Vec3, vel: Vec3, rng: &mut ChaCha8Rng) {
+        let i = self.len();
+        self.position.push(pos);
+        self.velocity.push(vel);
+        self.roll.push(0.0);
+        self.radii.push(5.0);
+        self.steering.push(Vec3::ZERO);
+        self.next_decision
+            .push(self.time + rng.random_range(0.0..DU));
+        self.neighbour_count.push(0);
+        self.centrality.push(0.0);
+        self.escape.push(EscapeState::default());
+        self.rngs
+            .push(ChaCha8Rng::seed_from_u64(mix(self.seed, i as u64)));
+    }
+
+    /// Removes the bird at `i`, swapping the last bird into its place.
+    fn remove_bird(&mut self, i: usize) {
+        self.position.swap_remove(i);
+        self.velocity.swap_remove(i);
+        self.roll.swap_remove(i);
+        self.radii.swap_remove(i);
+        self.steering.swap_remove(i);
+        self.next_decision.swap_remove(i);
+        self.neighbour_count.swap_remove(i);
+        self.centrality.swap_remove(i);
+        self.escape.swap_remove(i);
+        self.rngs.swap_remove(i);
+    }
+
+    /// Removes birds that have landed below the reeds near the roost.
+    pub fn remove_landed(&mut self) {
+        let mut i = 0;
+        while i < self.len() {
+            let p = self.position[i];
+            let horizontal = (p.x * p.x + p.y * p.y).sqrt();
+            if p.z < REED_TOP && horizontal < R_ROOST {
+                self.remove_bird(i);
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    /// Removes every bird.
+    pub fn clear(&mut self) {
+        self.position.clear();
+        self.velocity.clear();
+        self.roll.clear();
+        self.radii.clear();
+        self.steering.clear();
+        self.next_decision.clear();
+        self.neighbour_count.clear();
+        self.centrality.clear();
+        self.escape.clear();
+        self.rngs.clear();
+    }
+
+    /// Adds `count` birds near the flock centroid.
+    pub fn add_birds(&mut self, count: usize, rng: &mut ChaCha8Rng) {
+        let centre = if self.is_empty() {
+            Vec3::new(0.0, 0.0, self.z0)
+        } else {
+            self.position.iter().copied().sum::<Vec3>() / self.len() as f32
+        };
+        for _ in 0..count {
+            let pos = centre + social::random_unit(rng) * rng.random_range(0.0..30.0);
+            let vel = social::random_unit(rng) * V0;
+            self.push_bird(pos, vel, rng);
+        }
+    }
+
+    /// Removes up to `count` birds.
+    pub fn remove_birds(&mut self, count: usize) {
+        for _ in 0..count {
+            if self.is_empty() {
+                break;
+            }
+            let last = self.len() - 1;
+            self.remove_bird(last);
+        }
+    }
+
+    /// Evening brightness: 0 bright gold, 1 night. Display dusk without an arc.
+    pub fn evening(&self) -> f32 {
+        match &self.arc {
+            Some(arc) => arc.evening(),
+            None => 0.5,
         }
     }
 
@@ -125,6 +231,10 @@ impl World {
     /// Advances the world by one integration step.
     pub fn step(&mut self, dt: f32) {
         self.time += dt;
+        if let Some(mut arc) = self.arc.take() {
+            arc.update(dt, self);
+            self.arc = Some(arc);
+        }
         let time = self.time;
         let z0 = self.z0;
 

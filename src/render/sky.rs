@@ -1,8 +1,6 @@
-//! The sky gradient and the reed-bed silhouette.
+//! The sky gradient (day → dusk → night), stars, and the reed-bed silhouette.
 
 use ratatui::Frame;
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
 use ratatui::style::Color;
 
 /// Height, in rows, of the tallest reed clump.
@@ -11,8 +9,15 @@ const REED_MAX_ROWS: u16 = 4;
 /// Colour of the reed silhouette: nearly black with a little green.
 const REED: Color = Color::Rgb(12, 24, 16);
 
-/// Stops of the dusk gradient, from the zenith (`t = 0`) to the horizon
-/// (`t = 1`).
+/// Bright arrival sky, from the zenith (`t = 0`) to the horizon (`t = 1`).
+const DAY_STOPS: &[(f32, [u8; 3])] = &[
+    (0.00, [78, 140, 214]),
+    (0.50, [156, 190, 224]),
+    (0.80, [248, 206, 142]),
+    (1.00, [255, 226, 158]),
+];
+
+/// Dusk sky (the display phase).
 const DUSK_STOPS: &[(f32, [u8; 3])] = &[
     (0.00, [10, 16, 46]),
     (0.45, [72, 62, 122]),
@@ -21,12 +26,19 @@ const DUSK_STOPS: &[(f32, [u8; 3])] = &[
     (1.00, [255, 196, 112]),
 ];
 
-/// The sky colour at `t`, where 0 is the zenith and 1 the horizon.
-pub fn dusk_colour(t: f32) -> Color {
+/// Night sky.
+const NIGHT_STOPS: &[(f32, [u8; 3])] = &[
+    (0.00, [2, 4, 12]),
+    (0.55, [5, 7, 20]),
+    (0.82, [10, 12, 28]),
+    (1.00, [22, 20, 34]),
+];
+
+fn stops_colour(stops: &[(f32, [u8; 3])], t: f32) -> Color {
     let t = t.clamp(0.0, 1.0);
-    let mut lo = DUSK_STOPS[0];
-    let mut hi = DUSK_STOPS[DUSK_STOPS.len() - 1];
-    for pair in DUSK_STOPS.windows(2) {
+    let mut lo = stops[0];
+    let mut hi = stops[stops.len() - 1];
+    for pair in stops.windows(2) {
         if t >= pair[0].0 && t <= pair[1].0 {
             lo = pair[0];
             hi = pair[1];
@@ -43,44 +55,80 @@ pub fn dusk_colour(t: f32) -> Color {
     )
 }
 
-/// Number of reed rows in column `x`, for a view `width` cells wide.
-fn reed_rows(x: u16, width: u16) -> u16 {
-    let x = u32::from(x);
-    let width = u32::from(width).max(1);
-    // A cheap deterministic roughness: two incommensurate sawtooths.
-    let a = (x.wrapping_mul(2_654_435_761) >> 28) % 2;
-    let b = (x.wrapping_mul(40_503) / width) % 2;
-    2 + (a + b) as u16
+fn blend(a: Color, b: Color, t: f32) -> Color {
+    let (Color::Rgb(ar, ag, ab), Color::Rgb(br, bg, bb)) = (a, b) else {
+        return a;
+    };
+    let t = t.clamp(0.0, 1.0);
+    let m = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
+    Color::Rgb(m(ar, br), m(ag, bg), m(ab, bb))
 }
 
-/// Draws the dusk sky and the reeds into `frame`.
-pub fn draw(frame: &mut Frame) {
+/// The sky colour at `t`, for the given evening brightness (`0` bright gold to
+/// `1` night).
+pub fn sky_colour(t: f32, evening: f32) -> Color {
+    if evening < 0.5 {
+        blend(
+            stops_colour(DAY_STOPS, t),
+            stops_colour(DUSK_STOPS, t),
+            evening / 0.5,
+        )
+    } else {
+        blend(
+            stops_colour(DUSK_STOPS, t),
+            stops_colour(NIGHT_STOPS, t),
+            (evening - 0.5) / 0.5,
+        )
+    }
+}
+
+/// Number of reed rows in column `x`, for a view `width` cells wide, swaying
+/// gently with `time`.
+fn reed_rows(x: u16, width: u16, time: f32) -> u16 {
+    let xf = f32::from(x);
+    let x = u32::from(x);
+    let width = u32::from(width).max(1);
+    let base = 2
+        + ((x.wrapping_mul(2_654_435_761) >> 28) % 2 + (x.wrapping_mul(40_503) / width) % 2) as u16;
+    let sway = (time * 0.5 + xf * 0.25).sin();
+    (base as f32 + sway * 0.6)
+        .round()
+        .clamp(1.0, REED_MAX_ROWS as f32) as u16
+}
+
+fn star(x: u16, y: u16) -> bool {
+    let mut h = (u32::from(x)).wrapping_mul(73_856_093) ^ (u32::from(y)).wrapping_mul(19_349_663);
+    h ^= h >> 13;
+    h = h.wrapping_mul(1_274_126_177);
+    h ^= h >> 16;
+    h % 4096 < 6
+}
+
+/// Draws the sky, stars (at night) and reeds into `frame`.
+pub fn draw(frame: &mut Frame, evening: f32, time: f32) {
     let area = frame.area();
     if area.is_empty() {
         return;
     }
-    let buf = frame.buffer_mut();
-    paint_sky(buf, area);
-    paint_reeds(buf, area);
-}
-
-fn paint_sky(buf: &mut Buffer, area: Rect) {
     let last = area.height.saturating_sub(1).max(1);
+    let buf = frame.buffer_mut();
     for y in 0..area.height {
         let t = y as f32 / last as f32;
-        let colour = dusk_colour(t);
+        let colour = sky_colour(t, evening);
         for x in 0..area.width {
             let cell = &mut buf[(area.x + x, area.y + y)];
-            cell.set_symbol(" ");
+            if evening > 0.75 && y < area.height / 2 && star(x, y) {
+                cell.set_symbol("·");
+                cell.set_fg(Color::Rgb(210, 214, 230));
+            } else {
+                cell.set_symbol(" ");
+            }
             cell.set_bg(colour);
         }
     }
-}
-
-fn paint_reeds(buf: &mut Buffer, area: Rect) {
     let max_rows = REED_MAX_ROWS.min(area.height);
     for x in 0..area.width {
-        let rows = reed_rows(x, area.width).min(max_rows);
+        let rows = reed_rows(x, area.width, time).min(max_rows);
         for k in 0..rows {
             let y = area.y + area.height - 1 - k;
             let cell = &mut buf[(area.x + x, y)];
@@ -96,21 +144,17 @@ mod tests {
 
     #[test]
     fn gradient_endpoints_match_stops() {
-        assert_eq!(dusk_colour(0.0), Color::Rgb(10, 16, 46));
-        assert_eq!(dusk_colour(1.0), Color::Rgb(255, 196, 112));
-    }
-
-    #[test]
-    fn gradient_is_clamped_outside_unit_range() {
-        assert_eq!(dusk_colour(-5.0), dusk_colour(0.0));
-        assert_eq!(dusk_colour(5.0), dusk_colour(1.0));
+        assert_eq!(sky_colour(0.0, 0.0), Color::Rgb(78, 140, 214));
+        assert_eq!(sky_colour(1.0, 0.5), Color::Rgb(255, 196, 112));
     }
 
     #[test]
     fn reeds_stay_within_the_band() {
         for x in 0..200 {
-            let rows = reed_rows(x, 200);
-            assert!((2..=4).contains(&rows), "row count {rows} out of band");
+            for time in [0.0f32, 1.0, 5.0] {
+                let rows = reed_rows(x, 200, time);
+                assert!((1..=4).contains(&rows), "row count {rows} out of band");
+            }
         }
     }
 }
