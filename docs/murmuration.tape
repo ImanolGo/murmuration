@@ -3,7 +3,8 @@
 #   cargo build --release
 #   vhs docs/murmuration.tape
 #
-# If browser capture stalls, use `python3 docs/record.py` (POSIX, Pillow, ffmpeg).
+# If browser capture stalls, use `python3 docs/record.py` (POSIX, Pillow,
+# ffmpeg), which also uses gifski when available to keep the GIF small.
 #
 Output docs/murmuration.gif
 
@@ -20,7 +21,7 @@ Type "./target/release/murmuration --no-arc --falcon --seed 42 --birds 4000 --co
 Enter
 Sleep 3s
 Show
-Sleep 42s
+Sleep 20s
 Hide
 Type "q"
 Sleep 1s

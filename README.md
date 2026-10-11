@@ -20,8 +20,8 @@ Leave it running between tasks, or step in as the falcon.
 ![A simulated starling flock banking and changing shape against a dusk sky](https://raw.githubusercontent.com/ImanolGo/murmuration/main/docs/murmuration.gif)
 
 Recorded from the current live application: **4,000 birds, seed 42, display-only
-dusk and an autonomous falcon**. The GIF loops for the preview; the application
-simulates the birds continuously. See [recording the demo](#recording-the-demo).
+dusk and an autonomous falcon**, as a short loop. The application simulates the
+birds continuously. See [recording the demo](#recording-the-demo).
 
 > **Status:** a working, evolving simulation. It is inspired by flocking research,
 > but is not an exact reproduction of a published model. See
@@ -245,14 +245,16 @@ captures do not speed up the birds.
 
 ```sh
 cargo build --release
-python3 docs/record.py --seed 42 --birds 4000 --seconds 45
+python3 docs/record.py --seed 42 --birds 4000 --seconds 22
 ```
 
 This writes `docs/murmuration.gif`. The optional recording tool needs POSIX,
-Python with Pillow, ffmpeg and a monospace font containing braille. It uses
-fontconfig when available; use `--font /path/to/font.ttf` to choose a font or
-`--output preview.gif` for a different output file. These are **not** dependencies
-of the Rust application.
+Python with Pillow, ffmpeg and a monospace font containing braille. It encodes
+with [gifski](https://gif.ski) when it is installed — gifski compresses the
+dithered sky far better than ffmpeg, keeping the file around 3–4 MB instead of
+20+ — and falls back to ffmpeg otherwise. It uses fontconfig when available; use
+`--font /path/to/font.ttf` to choose a font or `--output preview.gif` for a
+different output file. These are **not** dependencies of the Rust application.
 
 A [VHS recipe](docs/murmuration.tape) is also included. Prefer the browser-free
 recorder in headless environments where browser capture can stall. The result is

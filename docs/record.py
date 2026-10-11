@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Record real live ANSI frames without a browser (POSIX, Pillow, ffmpeg).
 
-Build with `cargo build --release`, then run `python3 docs/record.py`.
-VHS is also supported; this avoids browser capture stalls in headless setups.
+Uses gifski when it is installed to keep the GIF small; otherwise falls back to
+ffmpeg's palette encoder.
 """
 import argparse
 import fcntl
@@ -11,6 +11,7 @@ from pathlib import Path
 import pty
 import re
 import select
+import shutil
 import struct
 import subprocess
 import tempfile
@@ -42,7 +43,7 @@ def rasterize(path, output, font):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--seconds", type=float, default=45.0)
+    parser.add_argument("--seconds", type=float, default=22.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--birds", type=int, default=4000)
     parser.add_argument("--output", type=Path)
@@ -108,22 +109,32 @@ def main():
         captures = sorted(directory.glob("*.ansi"), key=lambda p: float(p.stem.rsplit("-", 1)[1][:-1]))
         if len(captures) < 2:
             raise RuntimeError("the live demo did not produce enough frames")
+        images = []
         manifest = []
         for i, path in enumerate(captures):
             image = directory / f"frame-{i:05}.png"
             rasterize(path, image, font)
+            images.append(image)
             manifest.append(f"file '{image}'")
             t = float(path.stem.rsplit("-", 1)[1][:-1])
             next_t = float(captures[i + 1].stem.rsplit("-", 1)[1][:-1]) if i + 1 < len(captures) else t + 0.1
             manifest.append(f"duration {max(0.01, next_t - t):.3f}")
-        concat = directory / "frames.txt"
-        concat.write_text("\n".join(manifest) + "\n")
-        subprocess.run(
-            ["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0",
-             "-i", str(concat), "-filter_complex",
-             "split[a][b];[a]palettegen[p];[b][p]paletteuse=dither=bayer:bayer_scale=5",
-             "-fps_mode", "vfr", "-loop", "0", str(output)], check=True,
-        )
+        # gifski compresses a dithered sky far better than ffmpeg's palette path;
+        # fall back to the ffmpeg concat when gifski is not installed.
+        if shutil.which("gifski"):
+            subprocess.run(
+                ["gifski", "-q", "--fps", "10", "-Q", "85", "--lossy-quality", "70",
+                 "-o", str(output), *(str(p) for p in images)], check=True,
+            )
+        else:
+            concat = directory / "frames.txt"
+            concat.write_text("\n".join(manifest) + "\n")
+            subprocess.run(
+                ["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0",
+                 "-i", str(concat), "-filter_complex",
+                 "split[a][b];[a]palettegen[p];[b][p]paletteuse=dither=bayer:bayer_scale=5",
+                 "-fps_mode", "vfr", "-loop", "0", str(output)], check=True,
+            )
         print(f"Recorded {len(captures)} live frames to {output}")
 
 
