@@ -6,6 +6,28 @@ All notable changes to this project. Format loosely follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-11
+
+### Added
+
+- Prebuilt binaries for Linux, macOS and Windows, with shell and PowerShell
+  installers, an `.msi` for Windows and `.tar.xz` archives for each platform.
+- An `amd64` `.deb` (built with `cargo-deb`) that installs the binary plus a man
+  page and bash/zsh/fish shell completions, all generated from the command-line
+  definition.
+- Automated releases: pushing a version tag builds the binaries, creates the
+  GitHub Release, attaches the `.deb` and publishes to crates.io with Trusted
+  Publishing (no stored token).
+
+### Changed
+
+- The minimum supported Rust version is now **1.95** (latest stable minus two);
+  CI builds against it, and raising it is not a breaking change.
+- Added package metadata (authors, keywords, categories), README badges and a
+  security policy.
+- The internal modules are hidden from the rendered documentation; docs.rs now
+  shows the crate-level overview and stability note.
+
 ## [0.1.1] - 2026-10-10
 
 ### Fixed
