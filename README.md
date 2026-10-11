@@ -30,22 +30,46 @@ birds continuously. See [recording the demo](#recording-the-demo).
 
 ## Getting started
 
-Requires Rust **1.95** or newer to build. The MSRV policy is the latest stable
-Rust minus two releases; raising it is not a breaking change. A truecolour
-terminal and a monospace
-font with braille glyphs give the best result. The application runs locally,
-without network access, accounts or required configuration files.
+The application runs locally, without network access, accounts or required
+configuration files. A truecolour terminal and a monospace font with braille
+glyphs give the best result.
 
-Install from this repository:
+### With a Rust toolchain
+
+Requires Rust **1.95** or newer. The MSRV policy is the latest stable Rust minus
+two releases; raising it is not a breaking change.
 
 ```sh
-cargo install --git https://github.com/ImanolGo/murmuration
+cargo install murmuration
 ```
 
-Or, from a local checkout:
+To install from a local checkout instead, use `cargo install --path .`.
+
+### Install a prebuilt binary
+
+Each [release](https://github.com/ImanolGo/murmuration/releases) ships Linux,
+macOS and Windows binaries plus installers:
 
 ```sh
-cargo install --path .
+# Linux / macOS
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/ImanolGo/murmuration/releases/latest/download/murmuration-installer.sh | sh
+```
+
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/ImanolGo/murmuration/releases/latest/download/murmuration-installer.ps1 | iex"
+```
+
+There is also an `.msi` for Windows and `.tar.xz` archives for each platform.
+
+### Debian / Ubuntu
+
+Each release includes an `amd64` `.deb` that installs the binary plus the man
+page and bash/zsh/fish completions. Download it from the latest release, then:
+
+```sh
+sudo apt install ./murmuration_*.deb
 ```
 
 For an immediate view of the flock at dusk:
